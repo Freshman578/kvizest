@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kvízest – Kivetítő & Moderátor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <script src="./config.js"></script>
+  <script src="./questions.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Outfit', system-ui, sans-serif; }
+    .fade-in { animation: fadeIn 0.32s ease-out both; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .pulse-ring { animation: pulseRing 1.2s ease-in-out infinite; }
+    @keyframes pulseRing {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+    }
+    #qrcode img, #qrcode canvas { margin: 0 auto; border-radius: 12px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen flex flex-col selection:bg-amber-400 selection:text-slate-950 overflow-x-hidden">
+
+  <!-- Háttér dekor -->
+  <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+    <div class="absolute -top-40 -left-40 w-[34rem] h-[34rem] bg-indigo-600/20 rounded-full blur-3xl"></div>
+    <div class="absolute -bottom-40 -right-40 w-[36rem] h-[36rem] bg-amber-500/15 rounded-full blur-3xl"></div>
+  </div>
+
+  <!-- Felső sáv -->
+  <header class="w-full px-6 py-4 flex items-center justify-between border-b border-white/10 bg-slate-950/60 backdrop-blur">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 font-black text-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
+        Q
+      </div>
+      <div>
+        <h1 id="headerTitle" class="text-xl font-extrabold tracking-tight leading-none">Kvízest</h1>
+        <p id="modeBadge" class="text-xs text-slate-400 mt-1">Kapcsolódás...</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <span id="progressBadge" class="hidden px-3.5 py-1.5 rounded-full bg-white/10 text-sm font-semibold text-slate-200">
+        1 / 6 kérdés
+      </span>
+      <button onclick="toggleFullscreen()" title="Teljes képernyő (F)" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-xs font-semibold text-slate-300 transition">
+        Teljes képernyő
+      </button>
+      <button onclick="confirmReset()" class="px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-xs font-semibold text-rose-300 transition">
+        Új játék
+      </button>
+    </div>
+  </header>
+
+  <!-- Fő tartalom -->
+  <main id="stage" class="flex-1 w-full max-w-6xl mx-auto px-6 py-8 flex flex-col justify-center">
+    <!-- JS tölti ki -->
+  </main>
+
+  <!-- Moderátori vezérlősáv alul -->
+  <footer id="controlBar" class="w-full px-6 py-4 border-t border-white/10 bg-slate-900/80 backdrop-blur flex flex-wrap items-center justify-between gap-4">
+    <div id="statusSummary" class="text-sm text-slate-300 font-medium">
+      Készülj fel az indulásra!
+    </div>
+    <div id="actionButtons" class="flex items-center gap-3">
+      <!-- JS tölti ki -->
+    </div>
+  </footer>
+
+  <script>
+    const QUESTIONS = window.QUIZ_QUESTIONS || [];
+    const QUIZ_TITLE = window.QUIZ_TITLE || "Kvízest";
+    document.getElementById("headerTitle").textContent = QUIZ_TITLE;
+
+    const OPTION_LABELS = ["A", "B", "C", "D"];
+    const OPTION_STYLES = [
+      { bg: "from-rose-500 to-pink-600" },
+      { bg: "from-sky-500 to-blue-600" },
+      { bg: "from-amber-400 to-orange-500" },
+      { bg: "from-emerald-500 to-teal-600" }
+    ];
+
+    let db = null;
+    let demoMode = false;
+    let timerInterval = null;
+    let timeLeft = 0;
+    let lastScreenKey = "";
+
+    let state = {
+      status: "setup", // setup | lobby | question | reveal | leaderboard | finished
+      currentIndex: -1,
+      acceptingAnswers: false,
+      teams: {},
+      answers: {},
+      scored: {},
+      revealedAnswer: null
+    };
+
+    function escapeHtml(str) {
+      return String(str ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function formatNumber(n) {
+      if (typeof n !== "number" || Number.isNaN(n)) return String(n);
+      return n.toLocaleString("hu-HU", { maximumFractionDigits: 4 });
+    }
+
+    function getPlayerUrl() {
+      if (window.location.protocol.startsWith("http")) {
+        return new URL("./", window.location.href).href;
+      }
+      return new URL("./index.html", window.location.href).href;
+    }
+
+    function init() {
+      if (!window.isFirebaseConfigured()) {
+        document.getElementById("modeBadge").textContent = "Nincs Firebase beállítva";
+        state.status = "setup";
+        render();
+        return;
+      }
+
+      try {
+        if (!firebase.apps.length) {
+          firebase.initializeApp(window.FIREBASE_CONFIG);
+        }
+        db = firebase.database();
+        document.getElementById("modeBadge").innerHTML =
+          '<span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1.5"></span>Élő Firebase kapcsolat';
+
+        db.ref("quiz/teams").on("value", (snap) => {
+          state.teams = snap.val() || {};
+          render();
+        });
+
+        db.ref("quiz/answers").on("value", (snap) => {
+          state.answers = snap.val() || {};
+          render();
+        });
+
+        db.ref("quiz").once("value", (snap) => {
+          const val = snap.val();
+          if (val && val.status && val.status !== "setup") {
+            state.status = val.status;
+            state.currentIndex = typeof val.currentIndex === "number" ? val.currentIndex : -1;
+            state.acceptingAnswers = Boolean(val.acceptingAnswers);
+            state.scored = val.scored || {};
+            state.revealedAnswer = val.revealedAnswer || null;
+            state.teams = val.teams || {};
+            state.answers = val.answers || {};
+            if (state.status === "question" && QUESTIONS[state.currentIndex]) {
+              timeLeft = QUESTIONS[state.currentIndex].time || 30;
+            }
+            render();
+          } else {
+            resetGame(false);
+          }
+        });
+      } catch (err) {
+        console.error(err);
+        alert("Firebase hiba: " + err.message);
+        state.status = "setup";
+        render();
+      }
+    }
+
+    // ============================================================
+    // DEMO MÓD (Firebase nélküli kipróbáláshoz)
+    // ============================================================
+    function startDemoMode() {
+      demoMode = true;
+      db = null;
+      document.getElementById("modeBadge").innerHTML =
+        '<span class="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1.5"></span>Demo mód (szimulált csapatok)';
+      state = {
+        status: "lobby",
+        currentIndex: -1,
+        acceptingAnswers: false,
+        teams: {
+          t1: { name: "Kék Villámok", score: 0, joinedAt: 1 },
+          t2: { name: "Kávéfüggők", score: 0, joinedAt: 2 },
+          t3: { name: "Bajnokok Ligája", score: 0, joinedAt: 3 },
+          t4: { name: "Tippelők", score: 0, joinedAt: 4 },
+          t5: { name: "Kettős Ügynökök", score: 0, joinedAt: 5 }
+        },
+        answers: {},
+        scored: {},
+        revealedAnswer: null
+      };
+      render();
+    }
+
+    function simulateDemoAnswers(qIndex) {
+      if (!demoMode) return;
+      const q = QUESTIONS[qIndex];
+      const teamIds = Object.keys(state.teams);
+      if (!state.answers[qIndex]) state.answers[qIndex] = {};
+
+      teamIds.forEach((tid, idx) => {
+        setTimeout(() => {
+          if (state.status !== "question" || state.currentIndex !== qIndex || !state.acceptingAnswers) return;
+          let val;
+          if (q.type === "abcd") {
+            val = Math.random() < 0.55 ? q.correct : Math.floor(Math.random() * 4);
+          } else {
+            const spread = Math.max(10, Math.round(Math.abs(q.correct) * 0.12));
+            const offset = Math.round((Math.random() - 0.5) * 2 * spread);
+            val = idx === 1 && Math.random() < 0.35 ? q.correct : q.correct + offset;
+          }
+          state.answers[qIndex][tid] = { value: val, submittedAt: Date.now() };
+          render();
+        }, 900 + idx * 750);
+      });
+    }
+
+    // ============================================================
+    // JÁTÉKMENET VEZÉRLÉS
+    // ============================================================
+    function pushToDb(patch) {
+      if (!demoMode && db) {
+        return db.ref("quiz").update(patch);
+      }
+      return Promise.resolve();
+    }
+
+    function confirmReset() {
+      if (confirm("Biztosan új játékot indítasz? Minden csapat és pontszám törlődik!")) {
+        resetGame(true);
+      }
+    }
+
+    function resetGame(clearTeams = true) {
+      stopTimer();
+      state.status = "lobby";
+      state.currentIndex = -1;
+      state.acceptingAnswers = false;
+      state.revealedAnswer = null;
+      state.scored = {};
+      state.answers = {};
+      if (clearTeams && !demoMode) state.teams = {};
+      if (demoMode && clearTeams) {
+        Object.values(state.teams).forEach(t => (t.score = 0));
+      }
+
+      if (!demoMode && db) {
+        db.ref("quiz").set({
+          title: QUIZ_TITLE,
+          status: "lobby",
+          currentIndex: -1,
+          acceptingAnswers: false,
+          question: null,
+          revealedAnswer: null,
+          teams: clearTeams ? null : (state.teams || null),
+          answers: null,
+          scored: null
+        });
+      }
+      render();
+    }
+
+    function startQuestion(index) {
+      if (index >= QUESTIONS.length) {
+        showFinished();
+        return;
+      }
+      stopTimer();
+      const q = QUESTIONS[index];
+      state.status = "question";
+      state.currentIndex = index;
+      state.acceptingAnswers = true;
+      state.revealedAnswer = null;
+      timeLeft = q.time || 30;
+
+      const publicQuestion = {
+        index,
+        total: QUESTIONS.length,
+        type: q.type,
+        category: q.category || "Kérdés",
+        text: q.text,
+        options: q.type === "abcd" ? q.options : null,
+        unit: q.unit || ""
+      };
+
+      pushToDb({
+        status: "question",
+        currentIndex: index,
+        acceptingAnswers: true,
+        question: publicQuestion,
+        revealedAnswer: null
+      });
+
+      render();
+      startTimer();
+      if (demoMode) simulateDemoAnswers(index);
+    }
+
+    function startTimer() {
+      stopTimer();
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        updateTimerUI();
+        if (timeLeft <= 0) {
+          stopTimer();
+          lockAnswers();
+        }
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function lockAnswers() {
+      if (!state.acceptingAnswers) return;
+      state.acceptingAnswers = false;
+      pushToDb({ acceptingAnswers: false });
+      render();
+    }
+
+    function revealAnswer() {
+      stopTimer();
+      const idx = state.currentIndex;
+      const q = QUESTIONS[idx];
+      const qAnswers = (state.answers && state.answers[idx]) ? state.answers[idx] : {};
+
+      let awards = {};
+      let numberRanking = [];
+
+      if (q.type === "abcd") {
+        const pts = q.points || 100;
+        Object.entries(qAnswers).forEach(([tid, ans]) => {
+          if (!state.teams[tid]) return;
+          if (Number(ans.value) === Number(q.correct)) {
+            awards[tid] = { delta: pts, label: `+${pts} pt` };
+          } else {
+            awards[tid] = { delta: 0, label: "0 pt" };
+          }
+        });
+      } else if (q.type === "number") {
+        const entries = Object.entries(qAnswers)
+          .filter(([tid, ans]) => state.teams[tid] && !Number.isNaN(Number(ans.value)))
+          .map(([tid, ans]) => {
+            const val = Number(ans.value);
+            return {
+              teamId: tid,
+              teamName: state.teams[tid].name,
+              value: val,
+              diff: Math.abs(val - q.correct)
+            };
+          })
+          .sort((a, b) => a.diff - b.diff);
+
+        const uniqueDiffs = [...new Set(entries.map(e => e.diff))];
+        const bestDiff = uniqueDiffs[0];
+        const secondDiff = entries.length >= 3 ? uniqueDiffs[1] : undefined;
+
+        entries.forEach((e) => {
+          let delta = 0;
+          let badge = "";
+          if (e.diff === 0) {
+            delta = 150;
+            badge = "Telitalálat! (+150)";
+          } else if (e.diff === bestDiff) {
+            delta = 100;
+            badge = "Legközelebbi! (+100)";
+          } else if (secondDiff !== undefined && e.diff === secondDiff) {
+            delta = 50;
+            badge = "2. legközelebbi (+50)";
+          }
+          awards[e.teamId] = { delta, label: badge || "0 pt" };
+          numberRanking.push({ ...e, delta, badge });
+        });
+      }
+
+      const revealed = {
+        type: q.type,
+        correct: q.correct,
+        display: q.type === "abcd"
+          ? `${OPTION_LABELS[q.correct]}) ${q.options[q.correct]}`
+          : `${formatNumber(q.correct)}${q.unit ? " " + q.unit : ""}`,
+        explanation: q.explanation || "",
+        awards,
+        numberRanking
+      };
+
+      const updates = {
+        status: "reveal",
+        acceptingAnswers: false,
+        revealedAnswer: revealed
+      };
+
+      if (!state.scored[idx]) {
+        state.scored[idx] = true;
+        updates[`scored/${idx}`] = true;
+        Object.entries(awards).forEach(([tid, info]) => {
+          if (state.teams[tid] && info.delta > 0) {
+            const newScore = (state.teams[tid].score || 0) + info.delta;
+            state.teams[tid].score = newScore;
+            updates[`teams/${tid}/score`] = newScore;
+          }
+        });
+      }
+
+      state.status = "reveal";
+      state.acceptingAnswers = false;
+      state.revealedAnswer = revealed;
+
+      pushToDb(updates);
+      render();
+    }
+
+    function showLeaderboard() {
+      stopTimer();
+      state.status = "leaderboard";
+      pushToDb({ status: "leaderboard" });
+      render();
+    }
+
+    function showFinished() {
+      stopTimer();
+      state.status = "finished";
+      pushToDb({ status: "finished" });
+      render();
+    }
+
+    function adjustScore(teamId, delta) {
+      if (!state.teams[teamId]) return;
+      const nextScore = Math.max(0, (state.teams[teamId].score || 0) + delta);
+      state.teams[teamId].score = nextScore;
+      if (!demoMode && db) {
+        db.ref(`quiz/teams/${teamId}/score`).set(nextScore);
+      }
+      render();
+    }
+
+    function removeTeam(teamId) {
+      if (!state.teams[teamId]) return;
+      if (!confirm(`Eltávolítod a(z) "${state.teams[teamId].name}" csapatot?`)) return;
+      delete state.teams[teamId];
+      if (!demoMode && db) {
+        db.ref(`quiz/teams/${teamId}`).remove();
+      }
+      render();
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
+      }
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (e.key === "f" || e.key === "F") {
+        toggleFullscreen();
+      } else if (e.key === "ArrowRight" || e.key === " ") {
+        e.preventDefault();
+        triggerPrimaryAction();
+      }
+    });
+
+    function triggerPrimaryAction() {
+      if (state.status === "lobby") {
+        if (Object.keys(state.teams).length > 0) startQuestion(0);
+      } else if (state.status === "question") {
+        revealAnswer();
+      } else if (state.status === "reveal") {
+        if (state.currentIndex + 1 >= QUESTIONS.length) showFinished();
+        else showLeaderboard();
+      } else if (state.status === "leaderboard") {
+        startQuestion(state.currentIndex + 1);
+      }
+    }
+
+    function updateTimerUI() {
+      const el = document.getElementById("timerNumber");
+      const bar = document.getElementById("timerBar");
+      if (!el) return;
+      el.textContent = Math.max(0, timeLeft);
+      if (timeLeft <= 5) {
+        el.classList.add("text-rose-400", "pulse-ring");
+      }
+      if (bar) {
+        const total = (QUESTIONS[state.currentIndex]?.time) || 30;
+        bar.style.width = `${Math.max(0, (timeLeft / total) * 100)}%`;
+      }
+    }
+
+    function getSortedTeams() {
+      return Object.entries(state.teams || {})
+        .map(([id, data]) => ({ id, ...data, score: data.score || 0 }))
+        .sort((a, b) => b.score - a.score || (a.joinedAt || 0) - (b.joinedAt || 0));
+    }
+
+    function render() {
+      const stage = document.getElementById("stage");
+      const progressBadge = document.getElementById("progressBadge");
+      const statusSummary = document.getElementById("statusSummary");
+      const actionButtons = document.getElementById("actionButtons");
+
+      const screenKey = `${state.status}_${state.currentIndex}`;
+      const animClass = screenKey !== lastScreenKey ? "fade-in" : "";
+      lastScreenKey = screenKey;
+
+      if (state.currentIndex >= 0 && ["question", "reveal", "leaderboard"].includes(state.status)) {
+        progressBadge.classList.remove("hidden");
+        progressBadge.textContent = `${state.currentIndex + 1} / ${QUESTIONS.length} kérdés`;
+      } else {
+        progressBadge.classList.add("hidden");
+      }
+
+      if (state.status === "setup") {
+        renderSetup(stage, statusSummary, actionButtons, animClass);
+      } else if (state.status === "lobby") {
+        renderLobby(stage, statusSummary, actionButtons, animClass);
+      } else if (state.status === "question") {
+        renderQuestion(stage, statusSummary, actionButtons, animClass);
+      } else if (state.status === "reveal") {
+        renderReveal(stage, statusSummary, actionButtons, animClass);
+      } else if (state.status === "leaderboard") {
+        renderLeaderboard(stage, statusSummary, actionButtons, false, animClass);
+      } else if (state.status === "finished") {
+        renderLeaderboard(stage, statusSummary, actionButtons, true, animClass);
+      }
+    }
+
+    function renderSetup(stage, statusSummary, actionButtons, animClass) {
+      stage.innerHTML = `
+        <div class="${animClass} max-w-2xl mx-auto bg-slate-900/90 border border-white/10 rounded-3xl p-8 md:p-10 shadow-2xl text-center">
+          <div class="w-16 h-16 mx-auto rounded-2xl bg-amber-400/15 border border-amber-400/30 flex items-center justify-center text-3xl mb-5">
+            ⚙️
+          </div>
+          <h2 class="text-3xl font-extrabold mb-3">A Firebase még nincs bekötve</h2>
+          <p class="text-slate-300 leading-relaxed mb-6">
+            Ahhoz, hogy a csapatok telefonról élőben tudjanak válaszolni, másold be a saját ingyenes Firebase projektadataidat a
+            <code class="px-2 py-0.5 rounded bg-white/10 text-amber-300 font-mono text-sm">config.js</code> fájlba.
+          </p>
+          <div class="bg-slate-950/80 border border-white/10 rounded-2xl p-4 text-left text-sm text-slate-300 space-y-2 mb-7">
+            <p><strong class="text-white">1.</strong> Hozz létre egy ingyenes projektet a Firebase Console-ban (Realtime Database).</p>
+            <p><strong class="text-white">2.</strong> Illeszd be az adatokat a <code class="text-amber-300">config.js</code> fájlba.</p>
+            <p><strong class="text-white">3.</strong> Töltsd fel a 4 fájlt GitHubra és kapcsold be a GitHub Pages-t.</p>
+          </div>
+          <button onclick="startDemoMode()" class="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-extrabold text-lg hover:brightness-110 transition shadow-lg shadow-orange-500/25">
+            Demo mód kipróbálása most (Firebase nélkül)
+          </button>
+        </div>
+      `;
+      statusSummary.textContent = "Állítsd be a config.js-t, vagy próbáld ki Demo módban!";
+      actionButtons.innerHTML = "";
+    }
+
+    function renderLobby(stage, statusSummary, actionButtons, animClass) {
+      const teams = getSortedTeams();
+      const playerUrl = getPlayerUrl();
+      const isLocal = !window.location.protocol.startsWith("http");
+
+      stage.innerHTML = `
+        <div class="${animClass} grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div class="lg:col-span-5 bg-slate-900/90 border border-white/10 rounded-3xl p-8 text-center shadow-2xl">
+            <span class="inline-block px-3 py-1 rounded-full bg-amber-400/15 text-amber-300 text-xs font-bold uppercase tracking-wider mb-4">
+              Csatlakozás telefonról
+            </span>
+            <h2 class="text-2xl font-extrabold mb-2">Olvasd be a QR-kódot!</h2>
+            <p class="text-slate-400 text-sm mb-6">Minden 2 fős csapatból <strong>egy fő</strong> lépjen be.</p>
+
+            <div class="bg-white p-4 rounded-2xl inline-block shadow-xl mb-5">
+              <div id="qrcode"></div>
+            </div>
+
+            <div class="bg-slate-950/80 border border-white/10 rounded-xl px-4 py-3 text-xs sm:text-sm font-mono text-sky-300 break-all">
+              ${escapeHtml(playerUrl)}
+            </div>
+            ${isLocal ? `<p class="text-xs text-amber-300/80 mt-3">Tipp: a QR-kód a GitHub Pages-re való feltöltés után lesz telefonról megnyitható.</p>` : ""}
+          </div>
+
+          <div class="lg:col-span-7">
+            <div class="flex items-end justify-between mb-5">
+              <div>
+                <h2 class="text-3xl md:text-4xl font-black tracking-tight">Csatlakozott csapatok</h2>
+                <p class="text-slate-400 mt-1">${QUESTIONS.length} kérdés vár rátok (ABCD + számtippelős)</p>
+              </div>
+              <div class="px-4 py-2 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 font-extrabold text-xl">
+                ${teams.length} csapat
+              </div>
+            </div>
+
+            ${teams.length === 0 ? `
+              <div class="bg-slate-900/60 border border-dashed border-white/15 rounded-3xl p-12 text-center text-slate-400">
+                <div class="text-4xl mb-3">📱</div>
+                <p class="text-lg font-semibold text-slate-300">Várakozás a csapatokra...</p>
+                <p class="text-sm mt-1">Amint egy csapat megadja a nevét a telefonján, azonnal megjelenik itt.</p>
+              </div>
+            ` : `
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                ${teams.map((t, i) => `
+                  <div class="group bg-slate-900/90 border border-white/10 rounded-2xl px-5 py-4 flex items-center justify-between shadow-lg">
+                    <div class="flex items-center gap-3 min-w-0">
+                      <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center font-black text-sm shrink-0">
+                        ${i + 1}
+                      </span>
+                      <span class="font-bold text-lg truncate">${escapeHtml(t.name)}</span>
+                    </div>
+                    <button onclick="removeTeam('${t.id}')" title="Csapat törlése" class="opacity-40 group-hover:opacity-100 text-rose-400 hover:text-rose-300 text-sm px-2 py-1 transition">
+                      ✕
+                    </button>
+                  </div>
+                `).join("")}
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+
+      const qrBox = document.getElementById("qrcode");
+      if (qrBox && window.QRCode) {
+        new QRCode(qrBox, {
+          text: playerUrl,
+          width: 210,
+          height: 210,
+          colorDark: "#0f172a",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      }
+
+      statusSummary.textContent = teams.length === 0
+        ? "Várakozás legalább 1 csapat csatlakozására..."
+        : `${teams.length} csapat készen áll! Nyomj a Start gombra (vagy Space-re).`;
+
+      actionButtons.innerHTML = `
+        <button onclick="startQuestion(0)" ${teams.length === 0 ? "disabled" : ""}
+          class="px-7 py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 font-extrabold text-base hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-lg shadow-emerald-500/20">
+          Kvíz indítása →
+        </button>
+      `;
+    }
+
+    function renderQuestion(stage, statusSummary, actionButtons, animClass) {
+      const q = QUESTIONS[state.currentIndex];
+      const teams = getSortedTeams();
+      const qAnswers = (state.answers && state.answers[state.currentIndex]) ? state.answers[state.currentIndex] : {};
+      const answeredIds = Object.keys(qAnswers).filter(id => state.teams[id]);
+      const allAnswered = teams.length > 0 && answeredIds.length >= teams.length;
+      const totalTime = q.time || 30;
+      const pct = Math.max(0, (timeLeft / totalTime) * 100);
+
+      stage.innerHTML = `
+        <div class="${animClass} space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <span class="px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 font-bold text-sm uppercase tracking-wider">
+                ${escapeHtml(q.category || "Kérdés")}
+              </span>
+              <span class="px-4 py-1.5 rounded-full ${q.type === "number" ? "bg-amber-500/20 border-amber-400/30 text-amber-200" : "bg-sky-500/20 border-sky-400/30 text-sky-200"} border font-bold text-sm">
+                ${q.type === "number" ? "🎯 Számtippelős kör" : "🔘 ABCD választós"}
+              </span>
+            </div>
+
+            <div class="flex items-center gap-4">
+              <div class="text-right">
+                <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Válaszoltak</div>
+                <div class="text-xl font-black ${allAnswered ? "text-emerald-400" : "text-white"}">
+                  ${answeredIds.length} / ${teams.length}
+                </div>
+              </div>
+              <div class="w-20 h-20 rounded-2xl bg-slate-900 border-2 ${!state.acceptingAnswers ? "border-rose-500" : timeLeft <= 5 ? "border-rose-400" : "border-amber-400/60"} flex flex-col items-center justify-center shadow-xl">
+                <span id="timerNumber" class="text-3xl font-black leading-none ${!state.acceptingAnswers ? "text-rose-400" : timeLeft <= 5 ? "text-rose-400 pulse-ring" : ""}">
+                  ${state.acceptingAnswers ? Math.max(0, timeLeft) : "0"}
+                </span>
+                <span class="text-[10px] uppercase text-slate-400 font-bold mt-0.5">mp</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
+            <div id="timerBar" class="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 transition-all duration-1000 ease-linear" style="width: ${state.acceptingAnswers ? pct : 0}%"></div>
+          </div>
+
+          <div class="bg-slate-900/90 border border-white/10 rounded-3xl p-8 md:p-10 shadow-2xl text-center">
+            <h2 class="text-3xl md:text-5xl font-black leading-tight tracking-tight">
+              ${escapeHtml(q.text)}
+            </h2>
+            ${!state.acceptingAnswers ? `
+              <div class="inline-block mt-5 px-5 py-2 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold text-base">
+                ⏰ Lejárt az idő! A válaszadás lezárult.
+              </div>
+            ` : ""}
+          </div>
+
+          ${q.type === "abcd" ? `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              ${q.options.map((opt, idx) => `
+                <div class="bg-slate-900/90 border border-white/10 rounded-2xl p-5 flex items-center gap-4 shadow-lg">
+                  <div class="w-14 h-14 rounded-xl bg-gradient-to-br ${OPTION_STYLES[idx].bg} text-white font-black text-2xl flex items-center justify-center shrink-0 shadow-md">
+                    ${OPTION_LABELS[idx]}
+                  </div>
+                  <div class="text-xl md:text-2xl font-bold text-white leading-snug">
+                    ${escapeHtml(opt)}
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          ` : `
+            <div class="bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border border-amber-400/30 rounded-3xl p-7 text-center">
+              <p class="text-2xl font-extrabold text-amber-200">
+                Írjátok be a tippeteket a telefonon!${q.unit ? ` <span class="text-white">(${escapeHtml(q.unit)})</span>` : ""}
+              </p>
+              <p class="text-slate-300 mt-2 text-sm md:text-base">
+                Telitalálat: <strong class="text-emerald-300">+150 pt</strong> • Legközelebbi tipp: <strong class="text-amber-300">+100 pt</strong> • 2. legközelebbi: <strong class="text-sky-300">+50 pt</strong>
+              </p>
+            </div>
+          `}
+
+          <div class="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+            ${teams.map(t => {
+              const done = Boolean(qAnswers[t.id]);
+              return `
+                <span class="px-4 py-2 rounded-full text-sm font-bold border transition ${
+                  done
+                    ? "bg-emerald-500/20 border-emerald-400/50 text-emerald-200"
+                    : "bg-white/5 border-white/10 text-slate-400"
+                }">
+                  ${done ? "✓ " : "⏳ "}${escapeHtml(t.name)}
+                </span>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      `;
+
+      statusSummary.textContent = allAnswered
+        ? "Minden csapat válaszolt! Felfedheted az eredményt."
+        : state.acceptingAnswers
+          ? `Válaszadás folyamatban (${answeredIds.length}/${teams.length})...`
+          : "Idő lejárt! Kattints a válasz felfedésére.";
+
+      actionButtons.innerHTML = `
+        ${state.acceptingAnswers ? `
+          <button onclick="lockAnswers()" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 font-bold text-sm transition">
+            Idő leállítása
+          </button>
+        ` : ""}
+        <button onclick="revealAnswer()" class="px-7 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-extrabold text-base hover:brightness-110 transition shadow-lg shadow-orange-500/25">
+          Válasz felfedése →
+        </button>
+      `;
+    }
+
+    function renderReveal(stage, statusSummary, actionButtons, animClass) {
+      const q = QUESTIONS[state.currentIndex];
+      const rev = state.revealedAnswer;
+      const qAnswers = (state.answers && state.answers[state.currentIndex]) ? state.answers[state.currentIndex] : {};
+
+      let detailHtml = "";
+
+      if (q.type === "abcd") {
+        const counts = [0, 0, 0, 0];
+        Object.entries(qAnswers).forEach(([tid, ans]) => {
+          if (state.teams[tid] && ans.value >= 0 && ans.value <= 3) counts[ans.value]++;
+        });
+
+        detailHtml = `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${q.options.map((opt, idx) => {
+              const isCorrect = idx === q.correct;
+              return `
+                <div class="rounded-2xl p-5 flex items-center justify-between gap-4 border-2 transition ${
+                  isCorrect
+                    ? "bg-emerald-500/20 border-emerald-400 shadow-lg shadow-emerald-500/20 scale-[1.01]"
+                    : "bg-slate-900/50 border-white/5 opacity-55"
+                }">
+                  <div class="flex items-center gap-4 min-w-0">
+                    <div class="w-12 h-12 rounded-xl ${isCorrect ? "bg-emerald-400 text-slate-950" : "bg-slate-800 text-slate-300"} font-black text-xl flex items-center justify-center shrink-0">
+                      ${isCorrect ? "✓" : OPTION_LABELS[idx]}
+                    </div>
+                    <div class="text-xl font-bold ${isCorrect ? "text-white" : "text-slate-300"} leading-snug">
+                      ${escapeHtml(opt)}
+                    </div>
+                  </div>
+                  <span class="px-3 py-1 rounded-full text-sm font-extrabold shrink-0 ${isCorrect ? "bg-emerald-400/25 text-emerald-200" : "bg-white/10 text-slate-300"}">
+                    ${counts[idx]} csapat
+                  </span>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        `;
+      } else {
+        const ranking = rev?.numberRanking || [];
+        detailHtml = `
+          <div class="bg-slate-900/90 border border-white/10 rounded-3xl p-6">
+            <h3 class="text-lg font-bold text-slate-300 mb-4">Csapatok tippjei (pontossági sorrendben)</h3>
+            ${ranking.length === 0 ? `
+              <p class="text-slate-400 py-4 text-center">Nem érkezett érvényes tipp ebben a körben.</p>
+            ` : `
+              <div class="space-y-2.5">
+                ${ranking.map((r, i) => `
+                  <div class="flex items-center justify-between gap-4 px-5 py-3.5 rounded-2xl border ${
+                    r.delta >= 150 ? "bg-emerald-500/20 border-emerald-400/60" :
+                    r.delta >= 100 ? "bg-amber-500/15 border-amber-400/50" :
+                    r.delta >= 50  ? "bg-sky-500/15 border-sky-400/40" :
+                    "bg-slate-950/60 border-white/5"
+                  }">
+                    <div class="flex items-center gap-3 min-w-0">
+                      <span class="w-8 h-8 rounded-lg bg-white/10 font-black text-sm flex items-center justify-center shrink-0">${i + 1}.</span>
+                      <span class="font-bold text-lg truncate">${escapeHtml(r.teamName)}</span>
+                    </div>
+                    <div class="flex items-center gap-4 shrink-0">
+                      <div class="text-right">
+                        <div class="text-xl font-black text-white">${formatNumber(r.value)}${q.unit ? " " + escapeHtml(q.unit) : ""}</div>
+                        <div class="text-xs text-slate-400">${r.diff === 0 ? "Pontos!" : "Eltérés: ±" + formatNumber(r.diff)}</div>
+                      </div>
+                      <span class="min-w-[140px] text-center px-3 py-1.5 rounded-xl text-xs font-extrabold ${
+                        r.delta > 0 ? "bg-emerald-400 text-slate-950" : "bg-white/10 text-slate-400"
+                      }">
+                        ${r.badge || "0 pt"}
+                      </span>
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+            `}
+          </div>
+        `;
+      }
+
+      stage.innerHTML = `
+        <div class="${animClass} space-y-6">
+          <div class="bg-gradient-to-br from-emerald-500/20 via-slate-900 to-slate-900 border border-emerald-400/40 rounded-3xl p-7 md:p-8 text-center shadow-2xl">
+            <span class="inline-block px-3.5 py-1 rounded-full bg-emerald-400/20 text-emerald-300 text-xs font-extrabold uppercase tracking-wider mb-3">
+              Helyes válasz
+            </span>
+            <h2 class="text-3xl md:text-5xl font-black text-white tracking-tight">
+              ${escapeHtml(rev?.display || "")}
+            </h2>
+            ${q.explanation ? `<p class="text-slate-300 text-lg mt-3 max-w-3xl mx-auto">${escapeHtml(q.explanation)}</p>` : ""}
+          </div>
+
+          ${detailHtml}
+        </div>
+      `;
+
+      const isLast = state.currentIndex + 1 >= QUESTIONS.length;
+      statusSummary.textContent = "A pontok automatikusan jóváírásra kerültek.";
+      actionButtons.innerHTML = `
+        <button onclick="${isLast ? "showFinished()" : "showLeaderboard()"}"
+          class="px-7 py-3 rounded-xl bg-gradient-to-r from-indigo-400 to-violet-500 text-slate-950 font-extrabold text-base hover:brightness-110 transition shadow-lg">
+          ${isLast ? "Végeredmény megtekintése 🏆" : "Állás megtekintése →"}
+        </button>
+      `;
+    }
+
+    function renderLeaderboard(stage, statusSummary, actionButtons, isFinal, animClass) {
+      const teams = getSortedTeams();
+      const medals = ["🥇", "🥈", "🥉"];
+
+      stage.innerHTML = `
+        <div class="${animClass} max-w-4xl mx-auto w-full space-y-6">
+          <div class="text-center">
+            <span class="inline-block px-4 py-1.5 rounded-full ${isFinal ? "bg-amber-400/20 text-amber-300" : "bg-indigo-500/20 text-indigo-200"} text-xs font-extrabold uppercase tracking-wider mb-3">
+              ${isFinal ? "🏆 Végeredmény" : "Aktuális állás"}
+            </span>
+            <h2 class="text-4xl md:text-5xl font-black tracking-tight">
+              ${isFinal ? (teams[0] ? `Győztes: ${escapeHtml(teams[0].name)}!` : "Vége a kvíznek!") : "Ranglista"}
+            </h2>
+          </div>
+
+          <div class="space-y-3">
+            ${teams.map((t, idx) => `
+              <div class="flex items-center justify-between gap-4 px-6 py-4 rounded-2xl border shadow-lg ${
+                idx === 0 ? "bg-gradient-to-r from-amber-500/25 via-amber-500/10 to-slate-900 border-amber-400/60" :
+                idx === 1 ? "bg-slate-900/90 border-slate-400/40" :
+                idx === 2 ? "bg-slate-900/90 border-orange-500/35" :
+                "bg-slate-900/70 border-white/10"
+              }">
+                <div class="flex items-center gap-4 min-w-0">
+                  <div class="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center font-black text-xl shrink-0">
+                    ${medals[idx] || (idx + 1) + "."}
+                  </div>
+                  <div class="text-xl md:text-2xl font-extrabold truncate">${escapeHtml(t.name)}</div>
+                </div>
+
+                <div class="flex items-center gap-3 shrink-0">
+                  <button onclick="adjustScore('${t.id}', -50)" title="-50 pont" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-rose-500/25 text-slate-400 hover:text-rose-300 font-bold text-sm transition">-</button>
+                  <div class="min-w-[110px] text-right text-2xl md:text-3xl font-black text-amber-300">
+                    ${t.score} <span class="text-sm text-slate-400 font-bold">pt</span>
+                  </div>
+                  <button onclick="adjustScore('${t.id}', 50)" title="+50 pont" class="w-8 h-8 rounded-lg bg-white/5 hover:bg-emerald-500/25 text-slate-400 hover:text-emerald-300 font-bold text-sm transition">+</button>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+
+      if (isFinal) {
+        statusSummary.textContent = "Köszönjük a játékot! A +/- gombokkal kézzel is módosíthatsz pontot.";
+        actionButtons.innerHTML = `
+          <button onclick="confirmReset()" class="px-7 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-extrabold text-base hover:brightness-110 transition">
+            Új játék indítása
+          </button>
+        `;
+      } else {
+        statusSummary.textContent = `Következik: ${state.currentIndex + 2}. kérdés / ${QUESTIONS.length}`;
+        actionButtons.innerHTML = `
+          <button onclick="startQuestion(${state.currentIndex + 1})" class="px-7 py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 font-extrabold text-base hover:brightness-110 transition shadow-lg shadow-emerald-500/20">
+            Következő kérdés →
+          </button>
+        `;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

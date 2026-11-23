@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Kvízest – Csatlakozás</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <script src="./config.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Outfit', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    .fade-in { animation: fadeIn 0.25s ease-out both; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-white min-h-[100dvh] flex flex-col">
+
+  <!-- Felső sáv -->
+  <header class="px-4 py-3.5 border-b border-white/10 bg-slate-900/70 backdrop-blur flex items-center justify-between">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 font-black flex items-center justify-center shrink-0">
+        Q
+      </div>
+      <div class="truncate">
+        <div id="teamHeaderName" class="font-extrabold text-sm leading-tight truncate">Kvízest</div>
+        <div id="teamHeaderScore" class="text-xs text-amber-300 font-bold hidden">0 pont</div>
+      </div>
+    </div>
+    <button id="leaveBtn" onclick="leaveTeam()" class="hidden text-xs text-slate-400 hover:text-rose-300 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10">
+      Kilépés
+    </button>
+  </header>
+
+  <!-- Fő tartalom -->
+  <main id="app" class="flex-1 w-full max-w-md mx-auto px-4 py-6 flex flex-col justify-center">
+    <div class="text-center text-slate-400">Betöltés...</div>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "kvizest_team_id_v1";
+    const OPTION_LABELS = ["A", "B", "C", "D"];
+    const OPTION_BTN_COLORS = [
+      "from-rose-500 to-pink-600",
+      "from-sky-500 to-blue-600",
+      "from-amber-400 to-orange-500",
+      "from-emerald-500 to-teal-600"
+    ];
+
+    let db = null;
+    let teamId = localStorage.getItem(STORAGE_KEY) || null;
+    let quizData = null;
+    let lastViewSignature = "";
+
+    function escapeHtml(str) {
+      return String(str ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function formatNumber(n) {
+      if (typeof n !== "number" || Number.isNaN(n)) return String(n);
+      return n.toLocaleString("hu-HU", { maximumFractionDigits: 4 });
+    }
+
+    function init() {
+      if (!window.isFirebaseConfigured()) {
+        document.getElementById("app").innerHTML = `
+          <div class="bg-slate-900 border border-white/10 rounded-3xl p-6 text-center space-y-3">
+            <div class="text-3xl">⚙️</div>
+            <h1 class="text-xl font-extrabold">A kvíz még nincs bekötve</h1>
+            <p class="text-sm text-slate-400">
+              A szervezőnek előbb ki kell töltenie a <code class="text-amber-300">config.js</code> fájlt a Firebase projektadataival.
+            </p>
+          </div>
+        `;
+        return;
+      }
+
+      if (!firebase.apps.length) {
+        firebase.initializeApp(window.FIREBASE_CONFIG);
+      }
+      db = firebase.database();
+
+      db.ref("quiz").on("value", (snap) => {
+        quizData = snap.val() || { status: "lobby" };
+
+        if (teamId && (!quizData.teams || !quizData.teams[teamId])) {
+          teamId = null;
+          localStorage.removeItem(STORAGE_KEY);
+        }
+
+        render();
+      });
+    }
+
+    function joinTeam(e) {
+      e.preventDefault();
+      const input = document.getElementById("teamNameInput");
+      const name = (input.value || "").trim();
+      if (!name) return;
+
+      const newId = "team_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+      teamId = newId;
+      localStorage.setItem(STORAGE_KEY, newId);
+
+      db.ref(`quiz/teams/${newId}`).set({
+        name: name.slice(0, 28),
+        score: 0,
+        joinedAt: Date.now()
+      });
+    }
+
+    function leaveTeam() {
+      if (!confirm("Biztosan kilépsz a csapatból?")) return;
+      if (teamId && db) {
+        db.ref(`quiz/teams/${teamId}`).remove();
+      }
+      teamId = null;
+      localStorage.removeItem(STORAGE_KEY);
+      lastViewSignature = "";
+      render();
+    }
+
+    function submitAbcd(optionIndex) {
+      if (!quizData || quizData.status !== "question" || !quizData.acceptingAnswers) return;
+      const qIdx = quizData.currentIndex;
+      if (quizData.answers && quizData.answers[qIdx] && quizData.answers[qIdx][teamId]) return;
+
+      db.ref(`quiz/answers/${qIdx}/${teamId}`).set({
+        value: optionIndex,
+        submittedAt: Date.now()
+      });
+    }
+
+    function submitNumber(e) {
+      e.preventDefault();
+      if (!quizData || quizData.status !== "question" || !quizData.acceptingAnswers) return;
+      const qIdx = quizData.currentIndex;
+      if (quizData.answers && quizData.answers[qIdx] && quizData.answers[qIdx][teamId]) return;
+
+      const input = document.getElementById("numberGuessInput");
+      const errEl = document.getElementById("numberError");
+      const raw = (input.value || "").replace(/\s+/g, "").replace(",", ".");
+      const num = Number(raw);
+
+      if (raw === "" || Number.isNaN(num) || !Number.isFinite(num)) {
+        errEl.textContent = "Kérlek, érvényes számot adj meg!";
+        errEl.classList.remove("hidden");
+        return;
+      }
+
+      db.ref(`quiz/answers/${qIdx}/${teamId}`).set({
+        value: num,
+        submittedAt: Date.now()
+      });
+    }
+
+    function render() {
+      const app = document.getElementById("app");
+      const headerName = document.getElementById("teamHeaderName");
+      const headerScore = document.getElementById("teamHeaderScore");
+      const leaveBtn = document.getElementById("leaveBtn");
+
+      const myTeam = teamId && quizData?.teams ? quizData.teams[teamId] : null;
+
+      if (myTeam) {
+        headerName.textContent = myTeam.name;
+        headerScore.textContent = `${myTeam.score || 0} pont`;
+        headerScore.classList.remove("hidden");
+        leaveBtn.classList.remove("hidden");
+      } else {
+        headerName.textContent = quizData?.title || "Kvízest";
+        headerScore.classList.add("hidden");
+        leaveBtn.classList.add("hidden");
+      }
+
+      const status = quizData?.status || "lobby";
+      const qIdx = quizData?.currentIndex;
+      const q = quizData?.question;
+      const myAnswer = (myTeam && quizData.answers && quizData.answers[qIdx]) ? quizData.answers[qIdx][teamId] : null;
+
+      let rank = 0;
+      if (myTeam && (status === "leaderboard" || status === "finished")) {
+        const sorted = Object.entries(quizData.teams || {})
+          .map(([id, d]) => ({ id, score: d.score || 0 }))
+          .sort((a, b) => b.score - a.score);
+        rank = sorted.findIndex(t => t.id === teamId) + 1;
+      }
+
+      // Megakadályozza, hogy más csapatok válaszai újrarendereljék az űrlapot gépelés közben!
+      const signature = JSON.stringify({
+        loggedIn: Boolean(myTeam),
+        teamName: myTeam?.name || "",
+        status,
+        qIdx,
+        accepting: Boolean(quizData?.acceptingAnswers),
+        answered: myAnswer ? myAnswer.value : null,
+        rank,
+        score: (status === "reveal" || status === "leaderboard" || status === "finished") ? (myTeam?.score || 0) : null
+      });
+
+      if (signature === lastViewSignature) return;
+      lastViewSignature = signature;
+
+      // 1. Nincs még belépve
+      if (!myTeam) {
+        app.innerHTML = `
+          <form onsubmit="joinTeam(event)" class="fade-in bg-slate-900 border border-white/10 rounded-3xl p-6 shadow-2xl space-y-5">
+            <div class="text-center">
+              <div class="text-4xl mb-2">🎯</div>
+              <h1 class="text-2xl font-black">Csatlakozás a kvízhez</h1>
+              <p class="text-sm text-slate-400 mt-1">Csapatonként elég egy telefonról belépni.</p>
+            </div>
+            <div>
+              <label for="teamNameInput" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                Csapat neve
+              </label>
+              <input
+                id="teamNameInput"
+                type="text"
+                maxlength="28"
+                required
+                autocomplete="off"
+                placeholder="Pl. Kék Villámok"
+                class="w-full px-4 py-4 rounded-2xl bg-slate-950 border border-white/15 text-white text-lg font-bold focus:outline-none focus:border-amber-400"
+              />
+            </div>
+            <button type="submit" class="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-lg active:scale-[0.98] transition shadow-lg shadow-orange-500/20">
+              Belépés a játékba
+            </button>
+          </form>
+        `;
+        return;
+      }
+
+      // 2. Lobby
+      if (status === "lobby") {
+        app.innerHTML = `
+          <div class="fade-in bg-slate-900 border border-white/10 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
+            <div class="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-3xl">
+              ✅
+            </div>
+            <h2 class="text-2xl font-black">Bent vagytok!</h2>
+            <p class="text-slate-300">
+              Csapat: <strong class="text-amber-300">${escapeHtml(myTeam.name)}</strong>
+            </p>
+            <p class="text-sm text-slate-400">
+              Nézzétek a kivetítőt! Amint a játékvezető elindítja az első kérdést, itt megjelennek a válaszgombok.
+            </p>
+          </div>
+        `;
+        return;
+      }
+
+      // 3. Aktív kérdés
+      if (status === "question" && q) {
+        if (myAnswer) {
+          const sentText = q.type === "abcd"
+            ? `${OPTION_LABELS[myAnswer.value]}) ${q.options[myAnswer.value]}`
+            : `${formatNumber(Number(myAnswer.value))}${q.unit ? " " + q.unit : ""}`;
+
+          app.innerHTML = `
+            <div class="fade-in bg-slate-900 border border-emerald-400/30 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
+              <div class="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/20 flex items-center justify-center text-3xl">
+                🔒
+              </div>
+              <h2 class="text-2xl font-black text-emerald-300">Válasz rögzítve!</h2>
+              <div class="bg-slate-950/80 border border-white/10 rounded-2xl px-4 py-3 text-lg font-extrabold text-white">
+                ${escapeHtml(sentText)}
+              </div>
+              <p class="text-sm text-slate-400">Várjátok meg a többieket és az eredményhirdetést a kivetítőn.</p>
+            </div>
+          `;
+          return;
+        }
+
+        if (!quizData.acceptingAnswers) {
+          app.innerHTML = `
+            <div class="fade-in bg-slate-900 border border-rose-500/30 rounded-3xl p-8 text-center space-y-3 shadow-2xl">
+              <div class="text-4xl">⏰</div>
+              <h2 class="text-2xl font-black text-rose-300">Lejárt az idő!</h2>
+              <p class="text-sm text-slate-400">Erre a kérdésre már nem érkezett be válasz tőletek. Figyeljétek a kivetítőt!</p>
+            </div>
+          `;
+          return;
+        }
+
+        if (q.type === "abcd") {
+          app.innerHTML = `
+            <div class="fade-in space-y-4">
+              <div class="bg-slate-900/90 border border-white/10 rounded-2xl p-4">
+                <div class="text-xs font-bold uppercase tracking-wider text-indigo-300 mb-1">
+                  ${q.index + 1} / ${q.total} • ${escapeHtml(q.category || "Kérdés")}
+                </div>
+                <p class="text-base font-bold leading-snug text-white">${escapeHtml(q.text)}</p>
+              </div>
+
+              <div class="space-y-3">
+                ${q.options.map((opt, idx) => `
+                  <button onclick="submitAbcd(${idx})"
+                    class="w-full p-4 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-[0.98] border border-white/15 flex items-center gap-3.5 text-left transition shadow-lg">
+                    <span class="w-11 h-11 rounded-xl bg-gradient-to-br ${OPTION_BTN_COLORS[idx]} text-white font-black text-xl flex items-center justify-center shrink-0">
+                      ${OPTION_LABELS[idx]}
+                    </span>
+                    <span class="font-bold text-base leading-snug text-white">${escapeHtml(opt)}</span>
+                  </button>
+                `).join("")}
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        if (q.type === "number") {
+          app.innerHTML = `
+            <form onsubmit="submitNumber(event)" class="fade-in space-y-4">
+              <div class="bg-slate-900/90 border border-white/10 rounded-2xl p-5">
+                <div class="text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">
+                  ${q.index + 1} / ${q.total} • 🎯 Számtippelős
+                </div>
+                <p class="text-lg font-extrabold leading-snug text-white">${escapeHtml(q.text)}</p>
+              </div>
+
+              <div class="bg-slate-900 border border-white/10 rounded-3xl p-5 space-y-4 shadow-xl">
+                <label for="numberGuessInput" class="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                  A ti tippetek${q.unit ? ` (${escapeHtml(q.unit)})` : ""}
+                </label>
+                <div class="flex items-center gap-2">
+                  <input
+                    id="numberGuessInput"
+                    type="text"
+                    inputmode="decimal"
+                    autocomplete="off"
+                    required
+                    placeholder="Írj be egy számot..."
+                    class="w-full px-4 py-4 rounded-2xl bg-slate-950 border border-white/15 text-white text-2xl font-black text-center focus:outline-none focus:border-amber-400"
+                  />
+                  ${q.unit ? `<span class="text-slate-300 font-bold text-base shrink-0">${escapeHtml(q.unit)}</span>` : ""}
+                </div>
+                <p id="numberError" class="hidden text-xs text-rose-400 font-semibold text-center"></p>
+                <button type="submit" class="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-lg active:scale-[0.98] transition shadow-lg">
+                  Tipp beküldése
+                </button>
+              </div>
+            </form>
+          `;
+          return;
+        }
+      }
+
+      // 4. Válasz felfedése
+      if (status === "reveal") {
+        const rev = quizData.revealedAnswer;
+        const myAward = rev?.awards ? rev.awards[teamId] : null;
+        const gotPoints = myAward && myAward.delta > 0;
+
+        app.innerHTML = `
+          <div class="fade-in bg-slate-900 border ${gotPoints ? "border-emerald-400/50" : "border-white/10"} rounded-3xl p-7 text-center space-y-4 shadow-2xl">
+            <div class="text-4xl">${gotPoints ? "🎉" : "😬"}</div>
+            <h2 class="text-2xl font-black ${gotPoints ? "text-emerald-300" : "text-slate-200"}">
+              ${gotPoints ? `+${myAward.delta} pont!` : "Most nem járt pont"}
+            </h2>
+            ${myAward?.label && gotPoints ? `<div class="inline-block px-3.5 py-1 rounded-full bg-emerald-400/20 text-emerald-200 text-xs font-bold">${escapeHtml(myAward.label)}</div>` : ""}
+            <div class="bg-slate-950/80 border border-white/10 rounded-2xl p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-400 font-bold mb-1">Helyes válasz</div>
+              <div class="text-lg font-extrabold text-white">${escapeHtml(rev?.display || "")}</div>
+            </div>
+            <p class="text-xs text-slate-400">Összpontszámotok: <strong class="text-amber-300">${myTeam.score || 0} pt</strong></p>
+          </div>
+        `;
+        return;
+      }
+
+      // 5. Ranglista / Végeredmény
+      if (status === "leaderboard" || status === "finished") {
+        app.innerHTML = `
+          <div class="fade-in bg-slate-900 border border-white/10 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
+            <div class="text-5xl">${status === "finished" && rank === 1 ? "🏆" : "📊"}</div>
+            <h2 class="text-2xl font-black">
+              ${status === "finished" ? "Vége a kvíznek!" : "Aktuális helyezésetek"}
+            </h2>
+            <div class="text-5xl font-black text-amber-300">${rank}. hely</div>
+            <p class="text-lg font-bold text-white">${myTeam.score || 0} pont</p>
+            <p class="text-sm text-slate-400">
+              ${status === "finished" ? "Köszönjük a játékot!" : "Készüljetek a következő kérdésre!"}
+            </p>
+          </div>
+        `;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
