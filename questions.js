@@ -4,9 +4,7 @@
 //   1. RÉSZ: Feleletválasztós kérdések (13 db)
 //   2. RÉSZ: Képfelismerés – Zenekarok (8 db)
 //   3. RÉSZ: Tippelős kérdések (13 db)
-//
-// FONTOS: Az 1. részben a két GM Clubos belsős kérdésnél
-// ellenőrizd a "correct" számot (0 = A, 1 = B, 2 = C, 3 = D)!
+
 // ============================================================
 
 window.QUIZ_TITLE = "Kvízest";
@@ -50,7 +48,7 @@ window.QUIZ_QUESTIONS = [
     category: "1. rész • GM Club",
     text: "Mikor alapították a GM Clubbot?",
     options: ["2016", "2017", "2015", "2018"],
-    correct: 1, // <-- ELLENŐRIZD! (0 = A: 2016, 1 = B: 2017, 2 = C: 2015, 3 = D: 2018)
+    correct: 1,
     time: 25,
     points: 100
   },
@@ -109,7 +107,7 @@ window.QUIZ_QUESTIONS = [
     category: "1. rész • GM Club",
     text: "Mi volt a legutolsó Tramparty hivatalos témája?",
     options: ["Űr", "Led", "Neon", "Vice City"],
-    correct: 2, // <-- ELLENŐRIZD! (0 = A: Űr, 1 = B: Led, 2 = C: Neon, 3 = D: Vice City)
+    correct: 2,
     time: 25,
     points: 100
   },
@@ -161,7 +159,7 @@ window.QUIZ_QUESTIONS = [
       "Gunsnroses"
     ],
     placeholder: "Írd be a zenekar nevét...",
-    time: 30,
+    time: 60,
     points: 100
   },
   {
@@ -176,7 +174,7 @@ window.QUIZ_QUESTIONS = [
       "Redhotchilipeppers"
     ],
     placeholder: "Írd be a zenekar nevét...",
-    time: 30,
+    time: 60,
     points: 100
   },
   {
@@ -190,7 +188,7 @@ window.QUIZ_QUESTIONS = [
       "Imaginedragons"
     ],
     placeholder: "Írd be a zenekar nevét...",
-    time: 30,
+    time: 60,
     points: 100
   },
   {
@@ -205,7 +203,7 @@ window.QUIZ_QUESTIONS = [
       "Therollingstones"
     ],
     placeholder: "Írd be a zenekar nevét...",
-    time: 30,
+    time: 60,
     points: 100
   },
   {
@@ -219,7 +217,7 @@ window.QUIZ_QUESTIONS = [
       "Tank csapda"
     ],
     placeholder: "Írd be a zenekar nevét...",
-    time: 30,
+    time: 60,
     points: 100
   },
   {
@@ -233,7 +231,7 @@ window.QUIZ_QUESTIONS = [
       "Halottpénz"
     ],
     placeholder: "Írd be a zenekar nevét...",
-    time: 30,
+    time: 60,
     points: 100
   },
   {
@@ -246,7 +244,7 @@ window.QUIZ_QUESTIONS = [
       "Omega"
     ],
     placeholder: "Írd be a zenekar nevét...",
-    time: 30,
+    time: 60,
     points: 100
   },
   {
@@ -260,7 +258,7 @@ window.QUIZ_QUESTIONS = [
       "Honey beast"
     ],
     placeholder: "Írd be a zenekar nevét...",
-    time: 30,
+    time: 60,
     points: 100
   },
 
