@@ -3,16 +3,38 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Kvízest – Csatlakozás</title>
+  <title>GM Club – Kvízest</title>
+  <link rel="icon" type="image/png" href="./logo.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <script src="./config.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,800;9..144,900&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Outfit', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --cream: #F8F5EC;
+      --terracotta: #DB562B;
+      --tangerine: #FA8841;
+      --ink: #1C1917;
+      --line: #E8DEC9;
+    }
+    body {
+      font-family: 'Outfit', system-ui, sans-serif;
+      background-color: var(--cream);
+      color: var(--ink);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .font-brand {
+      font-family: 'Fraunces', Georgia, serif;
+    }
+    .card-surface {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid var(--line);
+      box-shadow: 0 16px 34px -20px rgba(120, 53, 15, 0.18), 0 2px 8px -2px rgba(28, 25, 23, 0.05);
+      backdrop-filter: blur(8px);
+    }
     .fade-in { animation: fadeIn 0.25s ease-out both; }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(8px); }
@@ -20,37 +42,54 @@
     }
   </style>
 </head>
-<body class="bg-slate-950 text-white min-h-[100dvh] flex flex-col">
+<body class="min-h-[100dvh] flex flex-col relative overflow-x-hidden">
 
-  <!-- Felső sáv -->
-  <header class="px-4 py-3.5 border-b border-white/10 bg-slate-900/70 backdrop-blur flex items-center justify-between">
+  <!-- Minimalista háttér motívumok mobilra méretezve -->
+  <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none select-none" aria-hidden="true">
+    <svg class="absolute -top-10 -right-12 w-44 opacity-85" viewBox="0 0 240 260" fill="none">
+      <path d="M88 12C142 -4 206 24 226 84C246 144 218 220 162 242C106 264 38 228 24 166C10 104 34 28 88 12Z" fill="#FA8841"/>
+    </svg>
+    <svg class="absolute top-24 -left-10 w-28 opacity-85" viewBox="0 0 180 200" fill="none">
+      <path d="M74 16C116 20 144 64 156 106C168 148 140 188 94 190C48 192 14 156 12 108C10 60 32 12 74 16Z" fill="#DB562B"/>
+    </svg>
+    <svg class="absolute -bottom-16 -left-14 w-52 opacity-85" viewBox="0 0 280 280" fill="none">
+      <path d="M56 26C118 4 198 34 234 96C270 158 252 246 188 266C124 286 38 258 14 196C-10 134 -6 48 56 26Z" fill="#FA8841"/>
+    </svg>
+    <svg class="absolute bottom-8 -right-8 w-28 opacity-85" viewBox="0 0 180 180" fill="none">
+      <path d="M98 14C140 16 172 56 164 100C156 144 126 174 82 170C38 166 10 130 16 86C22 42 56 12 98 14Z" fill="#DB562B"/>
+    </svg>
+  </div>
+
+  <!-- Letisztult mobil fejléc -->
+  <header class="px-4 py-3.5 border-b border-[#E8DEC9] bg-[#F8F5EC]/90 backdrop-blur-md flex items-center justify-between sticky top-0 z-20">
     <div class="flex items-center gap-2.5 min-w-0">
-      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 font-black flex items-center justify-center shrink-0">
-        Q
+      <div class="w-9 h-9 rounded-full overflow-hidden shrink-0 ring-2 ring-white shadow-sm bg-[#DB562B] flex items-center justify-center">
+        <img src="./logo.png" alt="GM Club" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+        <span class="hidden w-full h-full items-center justify-center font-black text-xs text-white">GM</span>
       </div>
       <div class="truncate">
-        <div id="teamHeaderName" class="font-extrabold text-sm leading-tight truncate">Kvízest</div>
-        <div id="teamHeaderScore" class="text-xs text-amber-300 font-bold hidden">0 pont</div>
+        <div id="teamHeaderName" class="font-brand font-extrabold text-base leading-tight text-[#DB562B] truncate">GM CLUB</div>
+        <div id="teamHeaderScore" class="text-xs text-[#6B6258] font-bold hidden">0 pont</div>
       </div>
     </div>
-    <button id="leaveBtn" onclick="leaveTeam()" class="hidden text-xs text-slate-400 hover:text-rose-300 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10">
+    <button id="leaveBtn" onclick="leaveTeam()" class="hidden text-xs font-bold text-[#6B6258] hover:text-[#B9421C] px-3 py-1.5 rounded-xl bg-white border border-[#E8DEC9] shadow-sm">
       Kilépés
     </button>
   </header>
 
   <!-- Fő tartalom -->
-  <main id="app" class="flex-1 w-full max-w-md mx-auto px-4 py-6 flex flex-col justify-center">
-    <div class="text-center text-slate-400">Betöltés...</div>
+  <main id="app" class="flex-1 w-full max-w-md mx-auto px-4 py-6 flex flex-col justify-center relative z-10">
+    <div class="text-center text-[#6B6258] font-medium">Betöltés...</div>
   </main>
 
   <script>
     const STORAGE_KEY = "kvizest_team_id_v1";
     const OPTION_LABELS = ["A", "B", "C", "D"];
     const OPTION_BTN_COLORS = [
-      "from-rose-500 to-pink-600",
-      "from-sky-500 to-blue-600",
-      "from-amber-400 to-orange-500",
-      "from-emerald-500 to-teal-600"
+      "bg-[#DB562B]",
+      "bg-[#0F766E]",
+      "bg-[#FA8841]",
+      "bg-[#3730A3]"
     ];
 
     let db = null;
@@ -75,11 +114,11 @@
     function init() {
       if (!window.isFirebaseConfigured()) {
         document.getElementById("app").innerHTML = `
-          <div class="bg-slate-900 border border-white/10 rounded-3xl p-6 text-center space-y-3">
+          <div class="card-surface rounded-3xl p-6 text-center space-y-3">
             <div class="text-3xl">⚙️</div>
-            <h1 class="text-xl font-extrabold">A kvíz még nincs bekötve</h1>
-            <p class="text-sm text-slate-400">
-              A szervezőnek előbb ki kell töltenie a <code class="text-amber-300">config.js</code> fájlt a Firebase projektadataival.
+            <h1 class="font-brand text-xl font-extrabold text-[#1C1917]">A kvíz még nincs bekötve</h1>
+            <p class="text-sm text-[#6B6258]">
+              A szervezőnek előbb ki kell töltenie a <code class="text-[#B9421C]">config.js</code> fájlt.
             </p>
           </div>
         `;
@@ -175,11 +214,15 @@
 
       if (myTeam) {
         headerName.textContent = myTeam.name;
+        headerName.classList.remove("font-brand", "text-[#DB562B]");
+        headerName.classList.add("text-[#1C1917]");
         headerScore.textContent = `${myTeam.score || 0} pont`;
         headerScore.classList.remove("hidden");
         leaveBtn.classList.remove("hidden");
       } else {
-        headerName.textContent = quizData?.title || "Kvízest";
+        headerName.textContent = "GM CLUB";
+        headerName.classList.add("font-brand", "text-[#DB562B]");
+        headerName.classList.remove("text-[#1C1917]");
         headerScore.classList.add("hidden");
         leaveBtn.classList.add("hidden");
       }
@@ -197,7 +240,6 @@
         rank = sorted.findIndex(t => t.id === teamId) + 1;
       }
 
-      // Megakadályozza, hogy más csapatok válaszai újrarendereljék az űrlapot gépelés közben!
       const signature = JSON.stringify({
         loggedIn: Boolean(myTeam),
         teamName: myTeam?.name || "",
@@ -215,14 +257,17 @@
       // 1. Nincs még belépve
       if (!myTeam) {
         app.innerHTML = `
-          <form onsubmit="joinTeam(event)" class="fade-in bg-slate-900 border border-white/10 rounded-3xl p-6 shadow-2xl space-y-5">
+          <form onsubmit="joinTeam(event)" class="fade-in card-surface rounded-3xl p-6 space-y-5">
             <div class="text-center">
-              <div class="text-4xl mb-2">🎯</div>
-              <h1 class="text-2xl font-black">Csatlakozás a kvízhez</h1>
-              <p class="text-sm text-slate-400 mt-1">Csapatonként elég egy telefonról belépni.</p>
+              <div class="w-16 h-16 mx-auto mb-3 rounded-full overflow-hidden shadow-md ring-4 ring-[#F8F5EC] bg-[#DB562B] flex items-center justify-center">
+                <img src="./logo.png" alt="GM Club" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                <span class="hidden w-full h-full items-center justify-center font-black text-white">GM</span>
+              </div>
+              <h1 class="font-brand text-2xl font-black text-[#1C1917]">Csatlakozás a kvízhez</h1>
+              <p class="text-sm text-[#6B6258] mt-1">Csapatonként elég egy telefonról belépni.</p>
             </div>
             <div>
-              <label for="teamNameInput" class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+              <label for="teamNameInput" class="block text-xs font-bold uppercase tracking-wider text-[#6B6258] mb-2">
                 Csapat neve
               </label>
               <input
@@ -232,10 +277,10 @@
                 required
                 autocomplete="off"
                 placeholder="Pl. Kék Villámok"
-                class="w-full px-4 py-4 rounded-2xl bg-slate-950 border border-white/15 text-white text-lg font-bold focus:outline-none focus:border-amber-400"
+                class="w-full px-4 py-4 rounded-2xl bg-[#FAF7F2] border border-[#DFD3BE] text-[#1C1917] text-lg font-bold placeholder:text-[#A89F91] focus:outline-none focus:border-[#DB562B] focus:bg-white transition"
               />
             </div>
-            <button type="submit" class="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-lg active:scale-[0.98] transition shadow-lg shadow-orange-500/20">
+            <button type="submit" class="w-full py-4 rounded-2xl bg-[#DB562B] hover:bg-[#B9421C] text-white font-extrabold text-lg active:scale-[0.98] transition shadow-lg shadow-[#DB562B]/25">
               Belépés a játékba
             </button>
           </form>
@@ -246,16 +291,16 @@
       // 2. Lobby
       if (status === "lobby") {
         app.innerHTML = `
-          <div class="fade-in bg-slate-900 border border-white/10 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
-            <div class="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-3xl">
+          <div class="fade-in card-surface rounded-3xl p-8 text-center space-y-4">
+            <div class="w-16 h-16 mx-auto rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-3xl">
               ✅
             </div>
-            <h2 class="text-2xl font-black">Bent vagytok!</h2>
-            <p class="text-slate-300">
-              Csapat: <strong class="text-amber-300">${escapeHtml(myTeam.name)}</strong>
+            <h2 class="font-brand text-2xl font-black text-[#1C1917]">Bent vagytok!</h2>
+            <p class="text-[#57534E]">
+              Csapat: <strong class="text-[#DB562B]">${escapeHtml(myTeam.name)}</strong>
             </p>
-            <p class="text-sm text-slate-400">
-              Nézzétek a kivetítőt! Amint a játékvezető elindítja az első kérdést, itt megjelennek a válaszgombok.
+            <p class="text-sm text-[#6B6258]">
+              Nézzétek a kivetítőt! Amint elindul az első kérdés, itt megjelennek a válaszgombok.
             </p>
           </div>
         `;
@@ -270,15 +315,15 @@
             : `${formatNumber(Number(myAnswer.value))}${q.unit ? " " + q.unit : ""}`;
 
           app.innerHTML = `
-            <div class="fade-in bg-slate-900 border border-emerald-400/30 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
-              <div class="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/20 flex items-center justify-center text-3xl">
+            <div class="fade-in card-surface border-emerald-300 rounded-3xl p-8 text-center space-y-4">
+              <div class="w-16 h-16 mx-auto rounded-2xl bg-emerald-100 flex items-center justify-center text-3xl">
                 🔒
               </div>
-              <h2 class="text-2xl font-black text-emerald-300">Válasz rögzítve!</h2>
-              <div class="bg-slate-950/80 border border-white/10 rounded-2xl px-4 py-3 text-lg font-extrabold text-white">
+              <h2 class="font-brand text-2xl font-black text-emerald-800">Válasz rögzítve!</h2>
+              <div class="bg-[#FAF7F2] border border-[#E8DEC9] rounded-2xl px-4 py-3 text-lg font-extrabold text-[#1C1917]">
                 ${escapeHtml(sentText)}
               </div>
-              <p class="text-sm text-slate-400">Várjátok meg a többieket és az eredményhirdetést a kivetítőn.</p>
+              <p class="text-sm text-[#6B6258]">Várjátok meg a többieket és az eredményhirdetést a kivetítőn.</p>
             </div>
           `;
           return;
@@ -286,10 +331,10 @@
 
         if (!quizData.acceptingAnswers) {
           app.innerHTML = `
-            <div class="fade-in bg-slate-900 border border-rose-500/30 rounded-3xl p-8 text-center space-y-3 shadow-2xl">
+            <div class="fade-in card-surface border-rose-300 rounded-3xl p-8 text-center space-y-3">
               <div class="text-4xl">⏰</div>
-              <h2 class="text-2xl font-black text-rose-300">Lejárt az idő!</h2>
-              <p class="text-sm text-slate-400">Erre a kérdésre már nem érkezett be válasz tőletek. Figyeljétek a kivetítőt!</p>
+              <h2 class="font-brand text-2xl font-black text-rose-700">Lejárt az idő!</h2>
+              <p class="text-sm text-[#6B6258]">Erre a kérdésre már nem érkezett be válasz tőletek. Figyeljétek a kivetítőt!</p>
             </div>
           `;
           return;
@@ -298,21 +343,21 @@
         if (q.type === "abcd") {
           app.innerHTML = `
             <div class="fade-in space-y-4">
-              <div class="bg-slate-900/90 border border-white/10 rounded-2xl p-4">
-                <div class="text-xs font-bold uppercase tracking-wider text-indigo-300 mb-1">
+              <div class="card-surface rounded-2xl p-4">
+                <div class="text-xs font-extrabold uppercase tracking-wider text-[#DB562B] mb-1">
                   ${q.index + 1} / ${q.total} • ${escapeHtml(q.category || "Kérdés")}
                 </div>
-                <p class="text-base font-bold leading-snug text-white">${escapeHtml(q.text)}</p>
+                <p class="text-base font-bold leading-snug text-[#1C1917]">${escapeHtml(q.text)}</p>
               </div>
 
               <div class="space-y-3">
                 ${q.options.map((opt, idx) => `
                   <button onclick="submitAbcd(${idx})"
-                    class="w-full p-4 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-[0.98] border border-white/15 flex items-center gap-3.5 text-left transition shadow-lg">
-                    <span class="w-11 h-11 rounded-xl bg-gradient-to-br ${OPTION_BTN_COLORS[idx]} text-white font-black text-xl flex items-center justify-center shrink-0">
+                    class="w-full p-4 rounded-2xl bg-white hover:bg-[#FFF9F4] active:scale-[0.98] border border-[#E8DEC9] flex items-center gap-3.5 text-left transition shadow-sm">
+                    <span class="w-11 h-11 rounded-xl ${OPTION_BTN_COLORS[idx]} text-white font-black text-xl flex items-center justify-center shrink-0">
                       ${OPTION_LABELS[idx]}
                     </span>
-                    <span class="font-bold text-base leading-snug text-white">${escapeHtml(opt)}</span>
+                    <span class="font-bold text-base leading-snug text-[#1C1917]">${escapeHtml(opt)}</span>
                   </button>
                 `).join("")}
               </div>
@@ -324,15 +369,15 @@
         if (q.type === "number") {
           app.innerHTML = `
             <form onsubmit="submitNumber(event)" class="fade-in space-y-4">
-              <div class="bg-slate-900/90 border border-white/10 rounded-2xl p-5">
-                <div class="text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">
+              <div class="card-surface rounded-2xl p-5">
+                <div class="text-xs font-extrabold uppercase tracking-wider text-[#DB562B] mb-1">
                   ${q.index + 1} / ${q.total} • 🎯 Számtippelős
                 </div>
-                <p class="text-lg font-extrabold leading-snug text-white">${escapeHtml(q.text)}</p>
+                <p class="text-lg font-extrabold leading-snug text-[#1C1917]">${escapeHtml(q.text)}</p>
               </div>
 
-              <div class="bg-slate-900 border border-white/10 rounded-3xl p-5 space-y-4 shadow-xl">
-                <label for="numberGuessInput" class="block text-xs font-bold uppercase tracking-wider text-slate-400">
+              <div class="card-surface rounded-3xl p-5 space-y-4">
+                <label for="numberGuessInput" class="block text-xs font-bold uppercase tracking-wider text-[#6B6258]">
                   A ti tippetek${q.unit ? ` (${escapeHtml(q.unit)})` : ""}
                 </label>
                 <div class="flex items-center gap-2">
@@ -343,12 +388,12 @@
                     autocomplete="off"
                     required
                     placeholder="Írj be egy számot..."
-                    class="w-full px-4 py-4 rounded-2xl bg-slate-950 border border-white/15 text-white text-2xl font-black text-center focus:outline-none focus:border-amber-400"
+                    class="w-full px-4 py-4 rounded-2xl bg-[#FAF7F2] border border-[#DFD3BE] text-[#1C1917] text-2xl font-black text-center placeholder:text-[#A89F91] focus:outline-none focus:border-[#DB562B] focus:bg-white transition"
                   />
-                  ${q.unit ? `<span class="text-slate-300 font-bold text-base shrink-0">${escapeHtml(q.unit)}</span>` : ""}
+                  ${q.unit ? `<span class="text-[#57534E] font-bold text-base shrink-0">${escapeHtml(q.unit)}</span>` : ""}
                 </div>
-                <p id="numberError" class="hidden text-xs text-rose-400 font-semibold text-center"></p>
-                <button type="submit" class="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-black text-lg active:scale-[0.98] transition shadow-lg">
+                <p id="numberError" class="hidden text-xs text-rose-600 font-semibold text-center"></p>
+                <button type="submit" class="w-full py-4 rounded-2xl bg-[#DB562B] hover:bg-[#B9421C] text-white font-extrabold text-lg active:scale-[0.98] transition shadow-lg shadow-[#DB562B]/25">
                   Tipp beküldése
                 </button>
               </div>
@@ -365,17 +410,17 @@
         const gotPoints = myAward && myAward.delta > 0;
 
         app.innerHTML = `
-          <div class="fade-in bg-slate-900 border ${gotPoints ? "border-emerald-400/50" : "border-white/10"} rounded-3xl p-7 text-center space-y-4 shadow-2xl">
+          <div class="fade-in card-surface ${gotPoints ? "border-emerald-400" : ""} rounded-3xl p-7 text-center space-y-4">
             <div class="text-4xl">${gotPoints ? "🎉" : "😬"}</div>
-            <h2 class="text-2xl font-black ${gotPoints ? "text-emerald-300" : "text-slate-200"}">
+            <h2 class="font-brand text-2xl font-black ${gotPoints ? "text-emerald-700" : "text-[#1C1917]"}">
               ${gotPoints ? `+${myAward.delta} pont!` : "Most nem járt pont"}
             </h2>
-            ${myAward?.label && gotPoints ? `<div class="inline-block px-3.5 py-1 rounded-full bg-emerald-400/20 text-emerald-200 text-xs font-bold">${escapeHtml(myAward.label)}</div>` : ""}
-            <div class="bg-slate-950/80 border border-white/10 rounded-2xl p-4">
-              <div class="text-xs uppercase tracking-wider text-slate-400 font-bold mb-1">Helyes válasz</div>
-              <div class="text-lg font-extrabold text-white">${escapeHtml(rev?.display || "")}</div>
+            ${myAward?.label && gotPoints ? `<div class="inline-block px-3.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">${escapeHtml(myAward.label)}</div>` : ""}
+            <div class="bg-[#FAF7F2] border border-[#E8DEC9] rounded-2xl p-4">
+              <div class="text-xs uppercase tracking-wider text-[#6B6258] font-bold mb-1">Helyes válasz</div>
+              <div class="text-lg font-extrabold text-[#1C1917]">${escapeHtml(rev?.display || "")}</div>
             </div>
-            <p class="text-xs text-slate-400">Összpontszámotok: <strong class="text-amber-300">${myTeam.score || 0} pt</strong></p>
+            <p class="text-xs text-[#6B6258] font-semibold">Összpontszámotok: <strong class="text-[#DB562B]">${myTeam.score || 0} pt</strong></p>
           </div>
         `;
         return;
@@ -384,14 +429,14 @@
       // 5. Ranglista / Végeredmény
       if (status === "leaderboard" || status === "finished") {
         app.innerHTML = `
-          <div class="fade-in bg-slate-900 border border-white/10 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
+          <div class="fade-in card-surface rounded-3xl p-8 text-center space-y-4">
             <div class="text-5xl">${status === "finished" && rank === 1 ? "🏆" : "📊"}</div>
-            <h2 class="text-2xl font-black">
+            <h2 class="font-brand text-2xl font-black text-[#1C1917]">
               ${status === "finished" ? "Vége a kvíznek!" : "Aktuális helyezésetek"}
             </h2>
-            <div class="text-5xl font-black text-amber-300">${rank}. hely</div>
-            <p class="text-lg font-bold text-white">${myTeam.score || 0} pont</p>
-            <p class="text-sm text-slate-400">
+            <div class="font-brand text-5xl font-black text-[#DB562B]">${rank}. hely</div>
+            <p class="text-lg font-bold text-[#1C1917]">${myTeam.score || 0} pont</p>
+            <p class="text-sm text-[#6B6258]">
               ${status === "finished" ? "Köszönjük a játékot!" : "Készüljetek a következő kérdésre!"}
             </p>
           </div>
