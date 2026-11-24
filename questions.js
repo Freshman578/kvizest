@@ -50,7 +50,7 @@ window.QUIZ_QUESTIONS = [
     category: "1. rész • GM Club",
     text: "Mikor alapították a GM Clubbot?",
     options: ["2016", "2017", "2015", "2018"],
-    correct: 0, // <-- ELLENŐRIZD! (0 = A: 2016, 1 = B: 2017, 2 = C: 2015, 3 = D: 2018)
+    correct: 1, // <-- ELLENŐRIZD! (0 = A: 2016, 1 = B: 2017, 2 = C: 2015, 3 = D: 2018)
     time: 25,
     points: 100
   },
