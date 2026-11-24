@@ -204,6 +204,28 @@
       });
     }
 
+    function submitText(e) {
+      e.preventDefault();
+      if (!quizData || quizData.status !== "question" || !quizData.acceptingAnswers) return;
+      const qIdx = quizData.currentIndex;
+      if (quizData.answers && quizData.answers[qIdx] && quizData.answers[qIdx][teamId]) return;
+
+      const input = document.getElementById("textAnswerInput");
+      const errEl = document.getElementById("textError");
+      const val = (input.value || "").trim();
+
+      if (!val) {
+        errEl.textContent = "Kérlek, írj be egy választ!";
+        errEl.classList.remove("hidden");
+        return;
+      }
+
+      db.ref(`quiz/answers/${qIdx}/${teamId}`).set({
+        value: val.slice(0, 80),
+        submittedAt: Date.now()
+      });
+    }
+
     function render() {
       const app = document.getElementById("app");
       const headerName = document.getElementById("teamHeaderName");
@@ -231,6 +253,9 @@
       const qIdx = quizData?.currentIndex;
       const q = quizData?.question;
       const myAnswer = (myTeam && quizData.answers && quizData.answers[qIdx]) ? quizData.answers[qIdx][teamId] : null;
+      const myAward = (myTeam && status === "reveal" && quizData.revealedAnswer?.awards)
+        ? quizData.revealedAnswer.awards[teamId]
+        : null;
 
       let rank = 0;
       if (myTeam && (status === "leaderboard" || status === "finished")) {
@@ -240,6 +265,7 @@
         rank = sorted.findIndex(t => t.id === teamId) + 1;
       }
 
+      // Megakadályozza az űrlap újrarajzolását gépelés közben, de frissít kézi pontmódosításnál is
       const signature = JSON.stringify({
         loggedIn: Boolean(myTeam),
         teamName: myTeam?.name || "",
@@ -247,6 +273,8 @@
         qIdx,
         accepting: Boolean(quizData?.acceptingAnswers),
         answered: myAnswer ? myAnswer.value : null,
+        awardDelta: myAward ? myAward.delta : null,
+        awardLabel: myAward ? myAward.label : null,
         rank,
         score: (status === "reveal" || status === "leaderboard" || status === "finished") ? (myTeam?.score || 0) : null
       });
@@ -310,9 +338,14 @@
       // 3. Aktív kérdés
       if (status === "question" && q) {
         if (myAnswer) {
-          const sentText = q.type === "abcd"
-            ? `${OPTION_LABELS[myAnswer.value]}) ${q.options[myAnswer.value]}`
-            : `${formatNumber(Number(myAnswer.value))}${q.unit ? " " + q.unit : ""}`;
+          let sentText = "";
+          if (q.type === "abcd") {
+            sentText = `${OPTION_LABELS[myAnswer.value]}) ${q.options[myAnswer.value]}`;
+          } else if (q.type === "number") {
+            sentText = `${formatNumber(Number(myAnswer.value))}${q.unit ? " " + q.unit : ""}`;
+          } else {
+            sentText = String(myAnswer.value);
+          }
 
           app.innerHTML = `
             <div class="fade-in card-surface border-emerald-300 rounded-3xl p-8 text-center space-y-4">
@@ -320,7 +353,7 @@
                 🔒
               </div>
               <h2 class="font-brand text-2xl font-black text-emerald-800">Válasz rögzítve!</h2>
-              <div class="bg-[#FAF7F2] border border-[#E8DEC9] rounded-2xl px-4 py-3 text-lg font-extrabold text-[#1C1917]">
+              <div class="bg-[#FAF7F2] border border-[#E8DEC9] rounded-2xl px-4 py-3 text-lg font-extrabold text-[#1C1917] break-words">
                 ${escapeHtml(sentText)}
               </div>
               <p class="text-sm text-[#6B6258]">Várjátok meg a többieket és az eredményhirdetést a kivetítőn.</p>
@@ -401,12 +434,48 @@
           `;
           return;
         }
+
+        if (q.type === "text") {
+          app.innerHTML = `
+            <form onsubmit="submitText(event)" class="fade-in space-y-4">
+              <div class="card-surface rounded-2xl p-5">
+                <div class="text-xs font-extrabold uppercase tracking-wider text-[#0F766E] mb-1">
+                  ${q.index + 1} / ${q.total} • ${q.hasImage ? "🖼️ Képfelismerés" : "✍️ Szöveges válasz"}
+                </div>
+                <p class="text-lg font-extrabold leading-snug text-[#1C1917]">${escapeHtml(q.text)}</p>
+                ${q.hasImage ? `<p class="text-xs text-[#6B6258] mt-1.5 font-medium">Nézzétek a kivetített képet!</p>` : ""}
+              </div>
+
+              <div class="card-surface rounded-3xl p-5 space-y-4">
+                <label for="textAnswerInput" class="block text-xs font-bold uppercase tracking-wider text-[#6B6258]">
+                  A ti válaszotok
+                </label>
+                <input
+                  id="textAnswerInput"
+                  type="text"
+                  maxlength="80"
+                  autocomplete="off"
+                  autocorrect="off"
+                  spellcheck="false"
+                  required
+                  placeholder="${escapeHtml(q.placeholder || "Írd be a választ...")}"
+                  class="w-full px-4 py-4 rounded-2xl bg-[#FAF7F2] border border-[#DFD3BE] text-[#1C1917] text-xl font-extrabold text-center placeholder:text-[#A89F91] focus:outline-none focus:border-[#DB562B] focus:bg-white transition"
+                />
+                <p class="text-[11px] text-[#6B6258] text-center">Kis- és nagybetű, illetve ékezet nem számít.</p>
+                <p id="textError" class="hidden text-xs text-rose-600 font-semibold text-center"></p>
+                <button type="submit" class="w-full py-4 rounded-2xl bg-[#DB562B] hover:bg-[#B9421C] text-white font-extrabold text-lg active:scale-[0.98] transition shadow-lg shadow-[#DB562B]/25">
+                  Válasz beküldése
+                </button>
+              </div>
+            </form>
+          `;
+          return;
+        }
       }
 
       // 4. Válasz felfedése
       if (status === "reveal") {
         const rev = quizData.revealedAnswer;
-        const myAward = rev?.awards ? rev.awards[teamId] : null;
         const gotPoints = myAward && myAward.delta > 0;
 
         app.innerHTML = `

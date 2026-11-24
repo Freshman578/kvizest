@@ -55,23 +55,18 @@
 
   <!-- Minimalista GM Club háttér motívumok (SVG organikus formák) -->
   <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none select-none" aria-hidden="true">
-    <!-- Bal felső kisebb terrakotta forma -->
     <svg class="absolute top-10 -left-6 w-40 md:w-52 opacity-90" viewBox="0 0 220 260" fill="none">
       <path d="M98 18C136 22 152 68 178 104C204 140 218 184 192 218C166 252 106 254 68 228C30 202 8 158 18 110C28 62 60 14 98 18Z" fill="#DB562B"/>
     </svg>
-    <!-- Bal alsó nagy narancs hullám -->
     <svg class="absolute -bottom-24 -left-24 w-72 md:w-[26rem] opacity-90" viewBox="0 0 420 460" fill="none">
       <path d="M56 32C128 6 196 58 226 128C256 198 338 224 374 294C410 364 366 446 286 456C206 466 84 446 34 378C-16 310 -16 58 56 32Z" fill="#FA8841"/>
     </svg>
-    <!-- Jobb felső nagy narancs hullám -->
     <svg class="absolute -top-20 -right-24 w-72 md:w-[27rem] opacity-90" viewBox="0 0 440 480" fill="none">
       <path d="M134 12C214 -14 338 14 398 92C458 170 434 328 362 404C290 480 172 478 118 418C64 358 54 276 92 216C130 156 54 38 134 12Z" fill="#FA8841"/>
     </svg>
-    <!-- Jobb alsó kisebb terrakotta forma -->
     <svg class="absolute bottom-14 right-6 w-36 md:w-48 opacity-90" viewBox="0 0 220 220" fill="none">
       <path d="M120 14C166 12 206 54 196 102C186 150 162 208 110 206C58 204 12 162 16 112C20 62 74 16 120 14Z" fill="#DB562B"/>
     </svg>
-    <!-- Finom pöttyös akcentus a háttérben -->
     <svg class="absolute top-32 right-64 w-28 opacity-20 hidden lg:block" viewBox="0 0 120 120" fill="none">
       <circle cx="15" cy="15" r="4" fill="#DB562B"/><circle cx="45" cy="15" r="4" fill="#DB562B"/><circle cx="75" cy="15" r="4" fill="#DB562B"/>
       <circle cx="15" cy="45" r="4" fill="#DB562B"/><circle cx="45" cy="45" r="4" fill="#DB562B"/><circle cx="75" cy="45" r="4" fill="#DB562B"/>
@@ -80,7 +75,7 @@
   </div>
 
   <!-- Letisztult, stílusos GM Club fejléc -->
-  <header class="w-full px-6 md:px-10 py-4 flex items-center justify-between border-b border-[#E8DEC9]/90 bg-[#F8F5EC]/85 backdrop-blur-md sticky top-0 z-20">
+  <header class="w-full px-6 md:px-10 py-3.5 flex items-center justify-between border-b border-[#E8DEC9]/90 bg-[#F8F5EC]/85 backdrop-blur-md sticky top-0 z-20">
     <div class="flex items-center gap-3.5">
       <div class="relative w-12 h-12 rounded-full shrink-0 shadow-md shadow-[#DB562B]/20 ring-2 ring-white overflow-hidden bg-[#DB562B] flex items-center justify-center">
         <img src="./logo.png" alt="GM Club logó" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
@@ -102,7 +97,7 @@
 
     <div class="flex items-center gap-2.5">
       <span id="progressBadge" class="hidden px-4 py-1.5 rounded-full bg-white border border-[#E8DEC9] text-sm font-bold text-[#1C1917] shadow-sm">
-        1 / 6 kérdés
+        1 / 14 kérdés
       </span>
       <button onclick="toggleFullscreen()" title="Teljes képernyő (F)" class="px-3.5 py-2 rounded-xl bg-white/90 hover:bg-white border border-[#E8DEC9] text-xs font-bold text-[#44403C] transition shadow-sm flex items-center gap-1.5">
         <span>⛶</span>
@@ -115,12 +110,17 @@
   </header>
 
   <!-- Fő tartalom -->
-  <main id="stage" class="flex-1 w-full max-w-6xl mx-auto px-6 py-8 flex flex-col justify-center relative z-10">
+  <main id="stage" class="flex-1 w-full max-w-6xl mx-auto px-6 py-6 flex flex-col justify-center relative z-10">
     <!-- JS tölti ki -->
   </main>
 
+  <!-- Nagyítható kép overlay (kattintásra) -->
+  <div id="imageModal" onclick="closeImageModal()" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-sm p-6 flex items-center justify-center cursor-zoom-out">
+    <img id="imageModalImg" src="" alt="Nagyított kép" class="max-w-full max-h-[92vh] rounded-2xl shadow-2xl object-contain" />
+  </div>
+
   <!-- Moderátori vezérlősáv alul -->
-  <footer id="controlBar" class="w-full px-6 md:px-10 py-4 border-t border-[#E8DEC9] bg-[#F8F5EC]/90 backdrop-blur-md flex flex-wrap items-center justify-between gap-4 relative z-20">
+  <footer id="controlBar" class="w-full px-6 md:px-10 py-3.5 border-t border-[#E8DEC9] bg-[#F8F5EC]/90 backdrop-blur-md flex flex-wrap items-center justify-between gap-4 relative z-20">
     <div id="statusSummary" class="text-sm text-[#57534E] font-semibold">
       Készülj fel az indulásra!
     </div>
@@ -135,7 +135,6 @@
     document.getElementById("headerTitle").textContent = QUIZ_TITLE;
 
     const OPTION_LABELS = ["A", "B", "C", "D"];
-    // A meleg minimalista palettához hangolt, jól elkülöníthető opció-színek
     const OPTION_STYLES = [
       { bg: "bg-[#DB562B]", ring: "border-[#DB562B]/25" },
       { bg: "bg-[#0F766E]", ring: "border-[#0F766E]/25" },
@@ -173,6 +172,52 @@
       return n.toLocaleString("hu-HU", { maximumFractionDigits: 4 });
     }
 
+    // Kis-/nagybetű, ékezet és írásjel független szövegnormalizálás
+    function normalizeTextAnswer(str) {
+      return String(str ?? "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/&/g, " and ")
+        .replace(/['’`´]/g, "")
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function isTextAnswerCorrect(userInput, question) {
+      const normUser = normalizeTextAnswer(userInput);
+      if (!normUser) return false;
+      const acceptedList = Array.isArray(question.acceptedAnswers) && question.acceptedAnswers.length
+        ? question.acceptedAnswers
+        : [question.correct];
+      return acceptedList.some((acc) => normalizeTextAnswer(acc) === normUser);
+    }
+
+    // Képek háttérbeli előtöltése, hogy kivetítéskor azonnal megjelenjenek
+    function preloadQuestionImages() {
+      QUESTIONS.forEach((q) => {
+        if (q.image) {
+          const img = new Image();
+          img.src = q.image;
+        }
+      });
+    }
+
+    function openImageModal(src) {
+      const modal = document.getElementById("imageModal");
+      const img = document.getElementById("imageModalImg");
+      if (!modal || !img) return;
+      img.src = src;
+      modal.classList.remove("hidden");
+    }
+
+    function closeImageModal() {
+      const modal = document.getElementById("imageModal");
+      if (modal) modal.classList.add("hidden");
+    }
+
     function getPlayerUrl() {
       if (window.location.protocol.startsWith("http")) {
         return new URL("./", window.location.href).href;
@@ -181,6 +226,8 @@
     }
 
     function init() {
+      preloadQuestionImages();
+
       if (!window.isFirebaseConfigured()) {
         state.status = "setup";
         render();
@@ -263,14 +310,21 @@
           let val;
           if (q.type === "abcd") {
             val = Math.random() < 0.55 ? q.correct : Math.floor(Math.random() * 4);
-          } else {
+          } else if (q.type === "number") {
             const spread = Math.max(10, Math.round(Math.abs(q.correct) * 0.12));
             const offset = Math.round((Math.random() - 0.5) * 2 * spread);
             val = idx === 1 && Math.random() < 0.35 ? q.correct : q.correct + offset;
+          } else if (q.type === "text") {
+            const variants = (q.acceptedAnswers && q.acceptedAnswers.length) ? q.acceptedAnswers : [q.correct];
+            if (idx === 0) val = variants[0].toLowerCase();
+            else if (idx === 1 && variants.length > 1) val = variants[1];
+            else if (idx === 2) val = variants[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+            else if (idx === 3) val = "Valami más együttes";
+            else val = variants[0].slice(0, -1); // szándékos apró elírás teszteléshez
           }
           state.answers[qIndex][tid] = { value: val, submittedAt: Date.now() };
           render();
-        }, 900 + idx * 750);
+        }, 800 + idx * 700);
       });
     }
 
@@ -289,6 +343,7 @@
 
     function resetGame(clearTeams = true) {
       stopTimer();
+      closeImageModal();
       state.status = "lobby";
       state.currentIndex = -1;
       state.acceptingAnswers = false;
@@ -322,6 +377,7 @@
         return;
       }
       stopTimer();
+      closeImageModal();
       const q = QUESTIONS[index];
       state.status = "question";
       state.currentIndex = index;
@@ -329,6 +385,7 @@
       state.revealedAnswer = null;
       timeLeft = q.time || 30;
 
+      // A telefonokra NEM küldjük át sem a helyes választ, sem a kép fájlnevét (csalás ellen)
       const publicQuestion = {
         index,
         total: QUESTIONS.length,
@@ -336,7 +393,9 @@
         category: q.category || "Kérdés",
         text: q.text,
         options: q.type === "abcd" ? q.options : null,
-        unit: q.unit || ""
+        unit: q.unit || "",
+        placeholder: q.placeholder || "",
+        hasImage: Boolean(q.image)
       };
 
       pushToDb({
@@ -380,12 +439,14 @@
 
     function revealAnswer() {
       stopTimer();
+      closeImageModal();
       const idx = state.currentIndex;
       const q = QUESTIONS[idx];
       const qAnswers = (state.answers && state.answers[idx]) ? state.answers[idx] : {};
 
       let awards = {};
       let numberRanking = [];
+      let textResults = [];
 
       if (q.type === "abcd") {
         const pts = q.points || 100;
@@ -431,6 +492,38 @@
           awards[e.teamId] = { delta, label: badge || "0 pt" };
           numberRanking.push({ ...e, delta, badge });
         });
+      } else if (q.type === "text") {
+        const pts = q.points || 100;
+        const sortedTeamList = getSortedTeams();
+        sortedTeamList.forEach((t) => {
+          const ans = qAnswers[t.id];
+          if (!ans || !String(ans.value ?? "").trim()) {
+            awards[t.id] = { delta: 0, label: "0 pt" };
+            textResults.push({
+              teamId: t.id,
+              teamName: t.name,
+              rawAnswer: "",
+              isCorrect: false,
+              delta: 0,
+              manual: false
+            });
+            return;
+          }
+          const raw = String(ans.value).trim();
+          const ok = isTextAnswerCorrect(raw, q);
+          const delta = ok ? pts : 0;
+          awards[t.id] = { delta, label: ok ? `+${pts} pt` : "0 pt" };
+          textResults.push({
+            teamId: t.id,
+            teamName: t.name,
+            rawAnswer: raw,
+            isCorrect: ok,
+            delta,
+            manual: false
+          });
+        });
+        // A helyes válaszok legyenek elöl
+        textResults.sort((a, b) => Number(b.isCorrect) - Number(a.isCorrect));
       }
 
       const revealed = {
@@ -438,10 +531,13 @@
         correct: q.correct,
         display: q.type === "abcd"
           ? `${OPTION_LABELS[q.correct]}) ${q.options[q.correct]}`
-          : `${formatNumber(q.correct)}${q.unit ? " " + q.unit : ""}`,
+          : q.type === "number"
+            ? `${formatNumber(q.correct)}${q.unit ? " " + q.unit : ""}`
+            : String(q.correct),
         explanation: q.explanation || "",
         awards,
-        numberRanking
+        numberRanking,
+        textResults
       };
 
       const updates = {
@@ -470,8 +566,44 @@
       render();
     }
 
+    // Moderátori kézi elfogadás / visszavonás szöveges válaszoknál (elírás esetére)
+    function toggleTextOverride(teamId) {
+      const q = QUESTIONS[state.currentIndex];
+      if (!q || q.type !== "text" || !state.revealedAnswer || !state.teams[teamId]) return;
+      const pts = q.points || 100;
+      const rev = state.revealedAnswer;
+      const item = (rev.textResults || []).find((r) => r.teamId === teamId);
+      if (!item) return;
+
+      let scoreDiff = 0;
+      if (item.isCorrect) {
+        scoreDiff = -item.delta;
+        item.isCorrect = false;
+        item.delta = 0;
+        item.manual = true;
+        rev.awards[teamId] = { delta: 0, label: "0 pt" };
+      } else {
+        scoreDiff = pts;
+        item.isCorrect = true;
+        item.delta = pts;
+        item.manual = true;
+        rev.awards[teamId] = { delta: pts, label: `+${pts} pt (elfogadva)` };
+      }
+
+      const nextScore = Math.max(0, (state.teams[teamId].score || 0) + scoreDiff);
+      state.teams[teamId].score = nextScore;
+
+      const updates = {
+        revealedAnswer: rev,
+        [`teams/${teamId}/score`]: nextScore
+      };
+      pushToDb(updates);
+      render();
+    }
+
     function showLeaderboard() {
       stopTimer();
+      closeImageModal();
       state.status = "leaderboard";
       pushToDb({ status: "leaderboard" });
       render();
@@ -479,6 +611,7 @@
 
     function showFinished() {
       stopTimer();
+      closeImageModal();
       state.status = "finished";
       pushToDb({ status: "finished" });
       render();
@@ -513,6 +646,10 @@
     }
 
     document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        closeImageModal();
+        return;
+      }
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
       if (e.key === "f" || e.key === "F") {
         toggleFullscreen();
@@ -614,7 +751,6 @@
 
       stage.innerHTML = `
         <div class="${animClass} grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          <!-- Bal oldal: QR kód -->
           <div class="lg:col-span-5 card-surface rounded-3xl p-8 text-center">
             <span class="inline-block px-3.5 py-1 rounded-full bg-[#DB562B]/12 text-[#B9421C] text-xs font-extrabold uppercase tracking-wider mb-4">
               Csatlakozás telefonról
@@ -632,12 +768,11 @@
             ${isLocal ? `<p class="text-xs text-[#8C7A65] mt-3">Tipp: a QR-kód a GitHub Pages linkről lesz telefonról megnyitható.</p>` : ""}
           </div>
 
-          <!-- Jobb oldal: Csatlakozott csapatok -->
           <div class="lg:col-span-7">
             <div class="flex items-end justify-between gap-4 mb-6">
               <div>
                 <h2 class="font-brand text-3xl md:text-4xl font-black tracking-tight text-[#1C1917]">Csatlakozott csapatok</h2>
-                <p class="text-[#6B6258] mt-1 font-medium">${QUESTIONS.length} kérdés vár rátok (ABCD + számtippelős)</p>
+                <p class="text-[#6B6258] mt-1 font-medium">${QUESTIONS.length} kérdés vár rátok (ABCD, számtippelős és képfelismerés)</p>
               </div>
               <div class="px-5 py-2.5 rounded-2xl bg-[#DB562B] text-white font-extrabold text-xl shadow-md shadow-[#DB562B]/25 shrink-0">
                 ${teams.length} csapat
@@ -704,15 +839,82 @@
       const totalTime = q.time || 30;
       const pct = Math.max(0, (timeLeft / totalTime) * 100);
 
+      let typeBadgeClass = "bg-[#DB562B]/12 border-[#DB562B]/25 text-[#B9421C]";
+      let typeBadgeLabel = "🔘 ABCD választós";
+      if (q.type === "number") {
+        typeBadgeClass = "bg-[#FA8841]/20 border-[#FA8841]/40 text-[#9A3412]";
+        typeBadgeLabel = "🎯 Számtippelős kör";
+      } else if (q.type === "text") {
+        typeBadgeClass = "bg-[#0F766E]/12 border-[#0F766E]/30 text-[#0F766E]";
+        typeBadgeLabel = q.image ? "🖼️ Képfelismerés" : "✍️ Szöveges válasz";
+      }
+
+      const imageHtml = q.image ? `
+        <div class="mt-4 flex flex-col items-center">
+          <div class="relative inline-block rounded-2xl overflow-hidden border-2 border-[#E8DEC9] bg-[#1C1917] shadow-lg">
+            <img
+              src="${escapeHtml(q.image)}"
+              alt="Felismerendő kép"
+              onclick="openImageModal('${escapeHtml(q.image)}')"
+              title="Kattints a teljes méretű nézethez"
+              class="max-h-[46vh] w-auto max-w-full object-contain cursor-zoom-in block"
+              onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');"
+            />
+            <div class="hidden px-8 py-12 text-center bg-[#FAF7F2] text-[#B9421C]">
+              <div class="text-3xl mb-2">⚠️</div>
+              <p class="font-bold">A kép nem található: <code class="font-mono">${escapeHtml(q.image)}</code></p>
+              <p class="text-xs text-[#6B6258] mt-1">Ellenőrizd, hogy fel van-e töltve a GitHubra pontosan ezen a néven!</p>
+            </div>
+          </div>
+        </div>
+      ` : "";
+
+      let bodyHtml = "";
+      if (q.type === "abcd") {
+        bodyHtml = `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${q.options.map((opt, idx) => `
+              <div class="card-surface rounded-2xl p-5 flex items-center gap-4 border ${OPTION_STYLES[idx].ring}">
+                <div class="w-14 h-14 rounded-xl ${OPTION_STYLES[idx].bg} text-white font-black text-2xl flex items-center justify-center shrink-0 shadow-sm">
+                  ${OPTION_LABELS[idx]}
+                </div>
+                <div class="text-xl md:text-2xl font-bold text-[#1C1917] leading-snug">
+                  ${escapeHtml(opt)}
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      } else if (q.type === "number") {
+        bodyHtml = `
+          <div class="bg-white/90 border-2 border-[#FA8841]/45 rounded-3xl p-7 text-center shadow-sm">
+            <p class="text-2xl font-extrabold text-[#1C1917]">
+              Írjátok be a tippeteket a telefonon!${q.unit ? ` <span class="text-[#DB562B]">(${escapeHtml(q.unit)})</span>` : ""}
+            </p>
+            <p class="text-[#57534E] mt-2 text-sm md:text-base font-medium">
+              Telitalálat: <strong class="text-emerald-700">+150 pt</strong> • Legközelebbi tipp: <strong class="text-[#DB562B]">+100 pt</strong> • 2. legközelebbi: <strong class="text-[#0F766E]">+50 pt</strong>
+            </p>
+          </div>
+        `;
+      } else if (q.type === "text") {
+        bodyHtml = `
+          <div class="bg-white/90 border border-[#0F766E]/30 rounded-2xl px-6 py-3.5 text-center shadow-sm">
+            <p class="text-base md:text-lg font-bold text-[#1C1917]">
+              ✍️ Írjátok be a választ a telefonon! <span class="text-[#6B6258] font-medium text-sm md:text-base">(Kis-/nagybetű és ékezet nem számít • Helyes válasz: <strong class="text-[#0F766E]">+${q.points || 100} pt</strong>)</span>
+            </p>
+          </div>
+        `;
+      }
+
       stage.innerHTML = `
-        <div class="${animClass} space-y-6">
+        <div class="${animClass} space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center gap-2.5">
               <span class="px-4 py-1.5 rounded-full bg-white border border-[#E8DEC9] text-[#1C1917] font-bold text-sm uppercase tracking-wider shadow-sm">
                 ${escapeHtml(q.category || "Kérdés")}
               </span>
-              <span class="px-4 py-1.5 rounded-full ${q.type === "number" ? "bg-[#FA8841]/20 border-[#FA8841]/40 text-[#9A3412]" : "bg-[#DB562B]/12 border-[#DB562B]/25 text-[#B9421C]"} border font-bold text-sm">
-                ${q.type === "number" ? "🎯 Számtippelős kör" : "🔘 ABCD választós"}
+              <span class="px-4 py-1.5 rounded-full ${typeBadgeClass} border font-bold text-sm">
+                ${typeBadgeLabel}
               </span>
             </div>
 
@@ -723,8 +925,8 @@
                   ${answeredIds.length} / ${teams.length}
                 </div>
               </div>
-              <div class="w-20 h-20 rounded-2xl bg-white border-2 ${!state.acceptingAnswers ? "border-rose-500" : timeLeft <= 5 ? "border-rose-500" : "border-[#DB562B]"} flex flex-col items-center justify-center shadow-md">
-                <span id="timerNumber" class="text-3xl font-black leading-none ${!state.acceptingAnswers ? "text-rose-600" : timeLeft <= 5 ? "text-rose-600 pulse-ring" : "text-[#1C1917]"}">
+              <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-white border-2 ${!state.acceptingAnswers ? "border-rose-500" : timeLeft <= 5 ? "border-rose-500" : "border-[#DB562B]"} flex flex-col items-center justify-center shadow-md">
+                <span id="timerNumber" class="text-2xl md:text-3xl font-black leading-none ${!state.acceptingAnswers ? "text-rose-600" : timeLeft <= 5 ? "text-rose-600 pulse-ring" : "text-[#1C1917]"}">
                   ${state.acceptingAnswers ? Math.max(0, timeLeft) : "0"}
                 </span>
                 <span class="text-[10px] uppercase text-[#6B6258] font-bold mt-0.5">mp</span>
@@ -732,54 +934,29 @@
             </div>
           </div>
 
-          <!-- Időcsík -->
           <div class="w-full h-2.5 bg-[#E8DEC9] rounded-full overflow-hidden">
             <div id="timerBar" class="h-full bg-gradient-to-r from-[#FA8841] to-[#DB562B] transition-all duration-1000 ease-linear" style="width: ${state.acceptingAnswers ? pct : 0}%"></div>
           </div>
 
-          <!-- Kérdés kártya -->
-          <div class="card-surface rounded-3xl p-8 md:p-11 text-center">
-            <h2 class="text-3xl md:text-5xl font-black leading-tight tracking-tight text-[#1C1917]">
+          <div class="card-surface rounded-3xl ${q.image ? "p-5 md:p-6" : "p-8 md:p-11"} text-center">
+            <h2 class="${q.image ? "text-2xl md:text-3xl" : "text-3xl md:text-5xl"} font-black leading-tight tracking-tight text-[#1C1917]">
               ${escapeHtml(q.text)}
             </h2>
+            ${imageHtml}
             ${!state.acceptingAnswers ? `
-              <div class="inline-block mt-5 px-5 py-2 rounded-full bg-rose-100 border border-rose-300 text-rose-700 font-bold text-base">
+              <div class="inline-block mt-4 px-5 py-1.5 rounded-full bg-rose-100 border border-rose-300 text-rose-700 font-bold text-sm md:text-base">
                 ⏰ Lejárt az idő! A válaszadás lezárult.
               </div>
             ` : ""}
           </div>
 
-          <!-- Válasz opciók vagy tippelő doboz -->
-          ${q.type === "abcd" ? `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              ${q.options.map((opt, idx) => `
-                <div class="card-surface rounded-2xl p-5 flex items-center gap-4 border ${OPTION_STYLES[idx].ring}">
-                  <div class="w-14 h-14 rounded-xl ${OPTION_STYLES[idx].bg} text-white font-black text-2xl flex items-center justify-center shrink-0 shadow-sm">
-                    ${OPTION_LABELS[idx]}
-                  </div>
-                  <div class="text-xl md:text-2xl font-bold text-[#1C1917] leading-snug">
-                    ${escapeHtml(opt)}
-                  </div>
-                </div>
-              `).join("")}
-            </div>
-          ` : `
-            <div class="bg-white/90 border-2 border-[#FA8841]/45 rounded-3xl p-7 text-center shadow-sm">
-              <p class="text-2xl font-extrabold text-[#1C1917]">
-                Írjátok be a tippeteket a telefonon!${q.unit ? ` <span class="text-[#DB562B]">(${escapeHtml(q.unit)})</span>` : ""}
-              </p>
-              <p class="text-[#57534E] mt-2 text-sm md:text-base font-medium">
-                Telitalálat: <strong class="text-emerald-700">+150 pt</strong> • Legközelebbi tipp: <strong class="text-[#DB562B]">+100 pt</strong> • 2. legközelebbi: <strong class="text-[#0F766E]">+50 pt</strong>
-              </p>
-            </div>
-          `}
+          ${bodyHtml}
 
-          <!-- Csapat státusz chipek -->
-          <div class="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+          <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
             ${teams.map(t => {
               const done = Boolean(qAnswers[t.id]);
               return `
-                <span class="px-4 py-2 rounded-full text-sm font-bold border transition ${
+                <span class="px-4 py-1.5 rounded-full text-sm font-bold border transition ${
                   done
                     ? "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm"
                     : "bg-white/80 border-[#E8DEC9] text-[#6B6258]"
@@ -849,7 +1026,7 @@
             }).join("")}
           </div>
         `;
-      } else {
+      } else if (q.type === "number") {
         const ranking = rev?.numberRanking || [];
         detailHtml = `
           <div class="card-surface rounded-3xl p-6">
@@ -889,18 +1066,78 @@
             `}
           </div>
         `;
+      } else if (q.type === "text") {
+        const results = rev?.textResults || [];
+        const pts = q.points || 100;
+        detailHtml = `
+          <div class="card-surface rounded-3xl p-6">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h3 class="text-lg font-extrabold text-[#57534E]">Csapatok válaszai</h3>
+              <span class="text-xs text-[#6B6258] font-medium">Apró elírásnál az „Elfogad” gombbal kézzel is megadhatod a pontot</span>
+            </div>
+            ${results.length === 0 ? `
+              <p class="text-[#6B6258] py-4 text-center">Nem érkezett válasz ebben a körben.</p>
+            ` : `
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                ${results.map((r) => `
+                  <div class="flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl border ${
+                    r.isCorrect
+                      ? "bg-emerald-50 border-emerald-400"
+                      : "bg-[#FAF7F2] border-[#E8DEC9]"
+                  }">
+                    <div class="min-w-0">
+                      <div class="text-xs font-bold uppercase tracking-wider text-[#6B6258] truncate">${escapeHtml(r.teamName)}</div>
+                      <div class="text-lg font-extrabold ${r.rawAnswer ? "text-[#1C1917]" : "text-[#A89F91] italic"} truncate mt-0.5">
+                        ${r.rawAnswer ? escapeHtml(r.rawAnswer) : "Nem érkezett válasz"}
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                      <span class="px-3 py-1.5 rounded-xl text-xs font-extrabold ${
+                        r.isCorrect ? "bg-emerald-600 text-white" : "bg-[#EAE0D0] text-[#6B6258]"
+                      }">
+                        ${r.isCorrect ? `✓ +${r.delta} pt` : "✕ 0 pt"}
+                      </span>
+                      ${r.rawAnswer ? `
+                        <button
+                          onclick="toggleTextOverride('${r.teamId}')"
+                          title="${r.isCorrect ? "Pont visszavonása" : "Válasz kézi elfogadása"}"
+                          class="px-2.5 py-1.5 rounded-xl text-xs font-bold border transition ${
+                            r.isCorrect
+                              ? "bg-white hover:bg-rose-50 border-[#E8DEC9] text-[#6B6258] hover:text-rose-700"
+                              : "bg-white hover:bg-emerald-50 border-emerald-300 text-emerald-700"
+                          }">
+                          ${r.isCorrect ? "Visszavon" : `Elfogad (+${pts})`}
+                        </button>
+                      ` : ""}
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+            `}
+          </div>
+        `;
       }
 
       stage.innerHTML = `
-        <div class="${animClass} space-y-6">
-          <div class="bg-white border-2 border-emerald-500/70 rounded-3xl p-7 md:p-8 text-center shadow-lg">
-            <span class="inline-block px-3.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-extrabold uppercase tracking-wider mb-3">
-              Helyes válasz
-            </span>
-            <h2 class="font-brand text-3xl md:text-5xl font-black text-[#1C1917] tracking-tight">
-              ${escapeHtml(rev?.display || "")}
-            </h2>
-            ${q.explanation ? `<p class="text-[#57534E] text-lg mt-3 max-w-3xl mx-auto font-medium">${escapeHtml(q.explanation)}</p>` : ""}
+        <div class="${animClass} space-y-5">
+          <div class="bg-white border-2 border-emerald-500/70 rounded-3xl p-6 md:p-7 shadow-lg ${q.image ? "flex flex-col md:flex-row items-center justify-center gap-6 text-center md:text-left" : "text-center"}">
+            ${q.image ? `
+              <img
+                src="${escapeHtml(q.image)}"
+                alt="${escapeHtml(rev?.display || "")}"
+                onclick="openImageModal('${escapeHtml(q.image)}')"
+                class="h-32 md:h-36 w-auto rounded-2xl border border-[#E8DEC9] shadow-sm object-cover cursor-zoom-in shrink-0"
+              />
+            ` : ""}
+            <div>
+              <span class="inline-block px-3.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-extrabold uppercase tracking-wider mb-2.5">
+                Helyes válasz
+              </span>
+              <h2 class="font-brand text-3xl md:text-5xl font-black text-[#1C1917] tracking-tight">
+                ${escapeHtml(rev?.display || "")}
+              </h2>
+              ${q.explanation ? `<p class="text-[#57534E] text-lg mt-2.5 max-w-3xl mx-auto font-medium">${escapeHtml(q.explanation)}</p>` : ""}
+            </div>
           </div>
 
           ${detailHtml}
