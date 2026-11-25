@@ -40,6 +40,11 @@
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    .emoji-float { animation: emojiFloat 2.8s ease-in-out infinite; }
+    @keyframes emojiFloat {
+      0%, 100% { transform: translateY(0px) scale(1); }
+      50% { transform: translateY(-6px) scale(1.04); }
+    }
   </style>
 </head>
 <body class="min-h-[100dvh] flex flex-col relative overflow-x-hidden">
@@ -271,6 +276,7 @@
         teamName: myTeam?.name || "",
         status,
         qIdx,
+        sectionTitle: quizData?.sectionIntro?.title || "",
         accepting: Boolean(quizData?.acceptingAnswers),
         answered: myAnswer ? myAnswer.value : null,
         awardDelta: myAward ? myAward.delta : null,
@@ -329,6 +335,37 @@
             </p>
             <p class="text-sm text-[#6B6258]">
               Nézzétek a kivetítőt! Amint elindul az első kérdés, itt megjelennek a válaszgombok.
+            </p>
+          </div>
+        `;
+        return;
+      }
+
+      // 2b. Szakasz nyitóoldal
+      if (status === "section_intro") {
+        const sec = quizData?.sectionIntro || {
+          sectionNumber: "",
+          title: "Új szakasz következik",
+          emoji: "✨",
+          subtitle: "Figyeljétek a kivetítőt!"
+        };
+        app.innerHTML = `
+          <div class="fade-in card-surface rounded-3xl p-8 text-center space-y-5">
+            ${sec.sectionNumber ? `
+              <span class="inline-block px-3.5 py-1 rounded-full bg-[#DB562B]/12 text-[#B9421C] text-xs font-extrabold uppercase tracking-wider">
+                ${escapeHtml(sec.sectionNumber)}. szakasz${sec.count ? ` • ${escapeHtml(sec.count)} kérdés` : ""}
+              </span>
+            ` : ""}
+            <h2 class="font-brand text-3xl font-black text-[#1C1917] leading-tight">
+              ${escapeHtml(sec.title)}
+            </h2>
+            <div class="flex justify-center py-2">
+              <div class="w-28 h-28 rounded-full bg-gradient-to-br from-[#FFF1E6] to-[#FFE4D1] border-2 border-[#FA8841]/40 flex items-center justify-center shadow-md">
+                <span class="emoji-float text-6xl leading-none select-none">${sec.emoji || "✨"}</span>
+              </div>
+            </div>
+            <p class="text-sm text-[#57534E] font-medium leading-relaxed">
+              ${escapeHtml(sec.subtitle || "Készüljetek, hamarosan indul a következő szakasz!")}
             </p>
           </div>
         `;

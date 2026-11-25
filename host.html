@@ -49,6 +49,11 @@
       50% { transform: scale(1.07); }
     }
     #qrcode img, #qrcode canvas { margin: 0 auto; border-radius: 14px; }
+    .emoji-float { animation: emojiFloat 2.8s ease-in-out infinite; }
+    @keyframes emojiFloat {
+      0%, 100% { transform: translateY(0px) scale(1); }
+      50% { transform: translateY(-8px) scale(1.04); }
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col selection:bg-[#DB562B] selection:text-white overflow-x-hidden relative">
@@ -145,19 +150,81 @@
     let db = null;
     let demoMode = false;
     let timerInterval = null;
+    let timerRafId = null;
     let timeLeft = 0;
     let timerEndAt = 0;
+    let timerDurationMs = 0;
     let lastScreenKey = "";
+    let renderedQuestionKey = "";
 
     let state = {
-      status: "setup", // setup | lobby | question | reveal | leaderboard | finished
+      status: "setup", // setup | lobby | section_intro | question | reveal | leaderboard | finished
       currentIndex: -1,
       acceptingAnswers: false,
       teams: {},
       answers: {},
       scored: {},
-      revealedAnswer: null
+      revealedAnswer: null,
+      sectionIntro: null
     };
+
+    // Szakaszok metaadatai (a kérdéstípus-váltások előtt megjelenő nyitóoldalhoz)
+    function isSectionStart(index) {
+      if (index < 0 || index >= QUESTIONS.length) return false;
+      if (index === 0) return true;
+      return QUESTIONS[index].type !== QUESTIONS[index - 1].type;
+    }
+
+    function getSectionMeta(index) {
+      const q = QUESTIONS[index];
+      if (!q) return null;
+
+      let sectionNumber = 1;
+      for (let i = 1; i <= index; i++) {
+        if (QUESTIONS[i].type !== QUESTIONS[i - 1].type) sectionNumber++;
+      }
+
+      let count = 0;
+      for (let i = index; i < QUESTIONS.length; i++) {
+        if (QUESTIONS[i].type === q.type) count++;
+        else break;
+      }
+
+      if (q.type === "abcd") {
+        return {
+          sectionNumber,
+          count,
+          type: "abcd",
+          title: "Feleletválasztós kérdések",
+          emoji: "🤔",
+          subtitle: "Négy lehetőség, egy helyes válasz — minden jó találat +100 pontot ér.",
+          badgeClass: "bg-[#DB562B]/12 text-[#B9421C] border-[#DB562B]/25",
+          glowClass: "from-[#FFF1E6] via-[#FFE4D1] to-[#FFF7F0] border-[#FA8841]/45"
+        };
+      }
+      if (q.type === "text") {
+        return {
+          sectionNumber,
+          count,
+          type: "text",
+          title: "Képfelismerés",
+          emoji: "🧐",
+          subtitle: "Nézzétek meg jól a kivetített képet, és írjátok be a zenekar nevét telefonon! (60 mp / kép)",
+          badgeClass: "bg-[#0F766E]/12 text-[#0F766E] border-[#0F766E]/25",
+          glowClass: "from-[#ECFAF7] via-[#D7F4EE] to-[#F4FCFA] border-[#0F766E]/30"
+        };
+      }
+      return {
+        sectionNumber,
+        count,
+        type: "number",
+        title: "Tippelős kérdések",
+        emoji: "💯",
+        subtitle: "Telitalálat +150 pt • Legközelebbi tipp +100 pt • 2. legközelebbi +50 pt",
+        badgeClass: "bg-[#FA8841]/20 text-[#9A3412] border-[#FA8841]/40",
+        glowClass: "from-[#FFF5EB] via-[#FFE6CC] to-[#FFF9F2] border-[#DB562B]/35"
+      };
+    }
 
     function escapeHtml(str) {
       return String(str ?? "")
@@ -259,10 +326,18 @@
             state.acceptingAnswers = Boolean(val.acceptingAnswers);
             state.scored = val.scored || {};
             state.revealedAnswer = val.revealedAnswer || null;
+            state.sectionIntro = val.sectionIntro || (state.status === "section_intro" ? getSectionMeta(state.currentIndex) : null);
             state.teams = val.teams || {};
             state.answers = val.answers || {};
             if (state.status === "question" && QUESTIONS[state.currentIndex]) {
-              timeLeft = state.acceptingAnswers ? (QUESTIONS[state.currentIndex].time || 30) : 0;
+              const totalSec = QUESTIONS[state.currentIndex].time || 30;
+              timerDurationMs = totalSec * 1000;
+              timeLeft = state.acceptingAnswers ? totalSec : 0;
+              if (state.acceptingAnswers) {
+                render();
+                startTimer();
+                return;
+              }
             }
             render();
           } else {
@@ -349,8 +424,10 @@
       state.currentIndex = -1;
       state.acceptingAnswers = false;
       state.revealedAnswer = null;
+      state.sectionIntro = null;
       state.scored = {};
       state.answers = {};
+      renderedQuestionKey = "";
       if (clearTeams && !demoMode) state.teams = {};
       if (demoMode && clearTeams) {
         Object.values(state.teams).forEach(t => (t.score = 0));
@@ -364,11 +441,54 @@
           acceptingAnswers: false,
           question: null,
           revealedAnswer: null,
+          sectionIntro: null,
           teams: clearTeams ? null : (state.teams || null),
           answers: null,
           scored: null
         });
       }
+      render();
+    }
+
+    function advanceToQuestion(index) {
+      if (index >= QUESTIONS.length) {
+        showFinished();
+        return;
+      }
+      if (isSectionStart(index)) {
+        showSectionIntro(index);
+      } else {
+        startQuestion(index);
+      }
+    }
+
+    function showSectionIntro(index) {
+      stopTimer();
+      closeImageModal();
+      renderedQuestionKey = "";
+      const meta = getSectionMeta(index);
+      state.status = "section_intro";
+      state.currentIndex = index;
+      state.acceptingAnswers = false;
+      state.revealedAnswer = null;
+      state.sectionIntro = meta;
+
+      pushToDb({
+        status: "section_intro",
+        currentIndex: index,
+        acceptingAnswers: false,
+        question: null,
+        revealedAnswer: null,
+        sectionIntro: {
+          sectionNumber: meta.sectionNumber,
+          count: meta.count,
+          type: meta.type,
+          title: meta.title,
+          emoji: meta.emoji,
+          subtitle: meta.subtitle
+        }
+      });
+
       render();
     }
 
@@ -379,12 +499,17 @@
       }
       stopTimer();
       closeImageModal();
+      renderedQuestionKey = "";
       const q = QUESTIONS[index];
+      const totalSec = q.time || 30;
       state.status = "question";
       state.currentIndex = index;
       state.acceptingAnswers = true;
       state.revealedAnswer = null;
-      timeLeft = q.time || 30;
+      state.sectionIntro = null;
+      timeLeft = totalSec;
+      timerDurationMs = totalSec * 1000;
+      timerEndAt = Date.now() + timerDurationMs;
 
       // A telefonokra NEM küldjük át sem a helyes választ, sem a kép fájlnevét (csalás ellen)
       const publicQuestion = {
@@ -404,7 +529,8 @@
         currentIndex: index,
         acceptingAnswers: true,
         question: publicQuestion,
-        revealedAnswer: null
+        revealedAnswer: null,
+        sectionIntro: null
       });
 
       render();
@@ -412,26 +538,58 @@
       if (demoMode) simulateDemoAnswers(index);
     }
 
+    function getRemainingRatio() {
+      if (!state.acceptingAnswers || state.status !== "question" || !timerEndAt || !timerDurationMs) {
+        return 0;
+      }
+      return Math.max(0, Math.min(1, (timerEndAt - Date.now()) / timerDurationMs));
+    }
+
+    function tickTimer() {
+      if (!state.acceptingAnswers || state.status !== "question" || !timerEndAt) {
+        stopTimer();
+        timeLeft = 0;
+        updateTimerUI(0);
+        return;
+      }
+      const remainingMs = Math.max(0, timerEndAt - Date.now());
+      const ratio = timerDurationMs > 0 ? Math.max(0, Math.min(1, remainingMs / timerDurationMs)) : 0;
+      const nextLeft = Math.max(0, Math.ceil(remainingMs / 1000));
+
+      if (nextLeft !== timeLeft) {
+        timeLeft = nextLeft;
+      }
+      updateTimerUI(ratio);
+
+      if (remainingMs <= 0) {
+        stopTimer();
+        lockAnswers();
+        return;
+      }
+      timerRafId = requestAnimationFrame(tickTimer);
+    }
+
     function startTimer() {
+      const preservedEndAt = timerEndAt;
       stopTimer();
       if (!state.acceptingAnswers || state.status !== "question" || timeLeft <= 0) {
         timeLeft = 0;
+        updateTimerUI(0);
         return;
       }
-      timerEndAt = Date.now() + timeLeft * 1000;
+      if (!timerDurationMs) {
+        timerDurationMs = (QUESTIONS[state.currentIndex]?.time || 30) * 1000;
+      }
+      timerEndAt = preservedEndAt > Date.now() ? preservedEndAt : (Date.now() + timeLeft * 1000);
+      timerRafId = requestAnimationFrame(tickTimer);
+
+      // Tartalék ellenőrzés arra az esetre, ha háttérbe kerülne a böngészőfül
       timerInterval = setInterval(() => {
         if (!state.acceptingAnswers || state.status !== "question" || !timerEndAt) {
           stopTimer();
-          timeLeft = 0;
-          updateTimerUI();
           return;
         }
-        const nextLeft = Math.max(0, Math.ceil((timerEndAt - Date.now()) / 1000));
-        if (nextLeft !== timeLeft) {
-          timeLeft = nextLeft;
-          updateTimerUI();
-        }
-        if (timeLeft <= 0) {
+        if (Date.now() >= timerEndAt) {
           stopTimer();
           lockAnswers();
         }
@@ -439,6 +597,10 @@
     }
 
     function stopTimer() {
+      if (timerRafId) {
+        cancelAnimationFrame(timerRafId);
+        timerRafId = null;
+      }
       if (timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
@@ -449,8 +611,9 @@
     function lockAnswers() {
       stopTimer();
       timeLeft = 0;
+      renderedQuestionKey = "";
       if (!state.acceptingAnswers) {
-        updateTimerUI();
+        updateTimerUI(0);
         return;
       }
       state.acceptingAnswers = false;
@@ -682,37 +845,61 @@
 
     function triggerPrimaryAction() {
       if (state.status === "lobby") {
-        if (Object.keys(state.teams).length > 0) startQuestion(0);
+        if (Object.keys(state.teams).length > 0) advanceToQuestion(0);
+      } else if (state.status === "section_intro") {
+        startQuestion(state.currentIndex);
       } else if (state.status === "question") {
         revealAnswer();
       } else if (state.status === "reveal") {
         if (state.currentIndex + 1 >= QUESTIONS.length) showFinished();
         else showLeaderboard();
       } else if (state.status === "leaderboard") {
-        startQuestion(state.currentIndex + 1);
+        advanceToQuestion(state.currentIndex + 1);
       }
     }
 
-    function updateTimerUI() {
+    function updateTimerUI(ratioOverride) {
       const el = document.getElementById("timerNumber");
       const bar = document.getElementById("timerBar");
+      const box = document.getElementById("timerBox");
+      if (!el && !bar) return;
+
+      const isLocked = !state.acceptingAnswers || state.status !== "question" || timeLeft <= 0;
+      const ratio = typeof ratioOverride === "number" ? ratioOverride : getRemainingRatio();
+
+      if (bar) {
+        bar.style.transform = `scaleX(${isLocked ? 0 : ratio})`;
+      }
+
       if (!el) return;
-      if (!state.acceptingAnswers || state.status !== "question" || timeLeft <= 0) {
+      if (isLocked) {
         el.textContent = "0";
-        el.classList.remove("pulse-ring");
+        el.classList.remove("pulse-ring", "text-[#1C1917]");
         el.classList.add("text-rose-600");
-        if (bar) bar.style.width = "0%";
+        if (box) {
+          box.classList.remove("border-[#DB562B]");
+          box.classList.add("border-rose-500");
+        }
         return;
       }
-      el.textContent = timeLeft;
+
+      if (el.textContent !== String(timeLeft)) {
+        el.textContent = String(timeLeft);
+      }
       if (timeLeft <= 5) {
+        el.classList.remove("text-[#1C1917]");
         el.classList.add("text-rose-600", "pulse-ring");
+        if (box) {
+          box.classList.remove("border-[#DB562B]");
+          box.classList.add("border-rose-500");
+        }
       } else {
         el.classList.remove("text-rose-600", "pulse-ring");
-      }
-      if (bar) {
-        const total = (QUESTIONS[state.currentIndex]?.time) || 30;
-        bar.style.width = `${Math.max(0, (timeLeft / total) * 100)}%`;
+        el.classList.add("text-[#1C1917]");
+        if (box) {
+          box.classList.remove("border-rose-500");
+          box.classList.add("border-[#DB562B]");
+        }
       }
     }
 
@@ -732,17 +919,27 @@
       const animClass = screenKey !== lastScreenKey ? "fade-in" : "";
       lastScreenKey = screenKey;
 
-      if (state.currentIndex >= 0 && ["question", "reveal", "leaderboard"].includes(state.status)) {
+      if (state.status === "section_intro") {
+        const meta = state.sectionIntro || getSectionMeta(state.currentIndex);
+        progressBadge.classList.remove("hidden");
+        progressBadge.textContent = meta ? `${meta.sectionNumber}. szakasz` : "Új szakasz";
+      } else if (state.currentIndex >= 0 && ["question", "reveal", "leaderboard"].includes(state.status)) {
         progressBadge.classList.remove("hidden");
         progressBadge.textContent = `${state.currentIndex + 1} / ${QUESTIONS.length} kérdés`;
       } else {
         progressBadge.classList.add("hidden");
       }
 
+      if (state.status !== "question") {
+        renderedQuestionKey = "";
+      }
+
       if (state.status === "setup") {
         renderSetup(stage, statusSummary, actionButtons, animClass);
       } else if (state.status === "lobby") {
         renderLobby(stage, statusSummary, actionButtons, animClass);
+      } else if (state.status === "section_intro") {
+        renderSectionIntro(stage, statusSummary, actionButtons, animClass);
       } else if (state.status === "question") {
         renderQuestion(stage, statusSummary, actionButtons, animClass);
       } else if (state.status === "reveal") {
@@ -853,11 +1050,74 @@
         : `${teams.length} csapat készen áll! Nyomj a Kvíz indítása gombra (vagy Space-re).`;
 
       actionButtons.innerHTML = `
-        <button onclick="startQuestion(0)" ${teams.length === 0 ? "disabled" : ""}
+        <button onclick="advanceToQuestion(0)" ${teams.length === 0 ? "disabled" : ""}
           class="px-7 py-3 rounded-xl bg-[#DB562B] hover:bg-[#B9421C] text-white font-extrabold text-base disabled:opacity-40 disabled:cursor-not-allowed transition shadow-lg shadow-[#DB562B]/25">
           Kvíz indítása →
         </button>
       `;
+    }
+
+    function renderSectionIntro(stage, statusSummary, actionButtons, animClass) {
+      const meta = state.sectionIntro || getSectionMeta(state.currentIndex);
+      if (!meta) {
+        startQuestion(state.currentIndex);
+        return;
+      }
+
+      stage.innerHTML = `
+        <div class="${animClass} max-w-4xl mx-auto w-full">
+          <div class="card-surface rounded-[2.25rem] px-8 py-12 md:px-14 md:py-16 text-center relative overflow-hidden">
+            <div class="inline-flex items-center gap-2 px-5 py-2 rounded-full border ${meta.badgeClass} text-sm font-extrabold uppercase tracking-[0.18em] mb-6">
+              <span>${meta.sectionNumber}. szakasz</span>
+              <span class="opacity-50">•</span>
+              <span>${meta.count} kérdés</span>
+            </div>
+
+            <h2 class="font-brand text-4xl sm:text-5xl md:text-7xl font-black tracking-tight text-[#1C1917] leading-[1.08]">
+              ${escapeHtml(meta.title)}
+            </h2>
+
+            <!-- Nagy, kiemelt emoji közvetlenül a szöveg alatt -->
+            <div class="my-8 md:my-10 flex items-center justify-center">
+              <div class="relative flex items-center justify-center">
+                <div class="absolute inset-0 rounded-full bg-gradient-to-br ${meta.glowClass} blur-xl opacity-75 scale-110"></div>
+                <div class="relative w-36 h-36 md:w-44 md:h-44 rounded-full bg-gradient-to-br ${meta.glowClass} border-2 flex items-center justify-center shadow-xl">
+                  <span class="emoji-float text-7xl md:text-8xl leading-none select-none" role="img" aria-label="${escapeHtml(meta.title)}">
+                    ${meta.emoji}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <p class="text-base md:text-xl text-[#57534E] font-semibold max-w-2xl mx-auto leading-relaxed">
+              ${escapeHtml(meta.subtitle)}
+            </p>
+          </div>
+        </div>
+      `;
+
+      statusSummary.textContent = `${meta.sectionNumber}. szakasz: ${meta.title} (${meta.count} kérdés) — nyomj a gombbal vagy Space-szel az indításhoz!`;
+      actionButtons.innerHTML = `
+        <button onclick="startQuestion(${state.currentIndex})"
+          class="px-8 py-3.5 rounded-xl bg-[#DB562B] hover:bg-[#B9421C] text-white font-extrabold text-base transition shadow-lg shadow-[#DB562B]/25">
+          Szakasz indítása →
+        </button>
+      `;
+    }
+
+    function buildTeamChipsHtml(teams, qAnswers) {
+      return teams.map(t => {
+        const done = Boolean(qAnswers[t.id]);
+        return `
+          <span class="px-4 py-1.5 rounded-full text-sm font-bold border transition ${
+            done
+              ? "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm"
+              : "bg-white/80 border-[#E8DEC9] text-[#6B6258]"
+          }">
+            ${done ? "✓ " : "⏳ "}${escapeHtml(t.name)}
+          </span>
+        `;
+      }).join("");
     }
 
     function renderQuestion(stage, statusSummary, actionButtons, animClass) {
@@ -866,8 +1126,30 @@
       const qAnswers = (state.answers && state.answers[state.currentIndex]) ? state.answers[state.currentIndex] : {};
       const answeredIds = Object.keys(qAnswers).filter(id => state.teams[id]);
       const allAnswered = teams.length > 0 && answeredIds.length >= teams.length;
-      const totalTime = q.time || 30;
-      const pct = Math.max(0, (timeLeft / totalTime) * 100);
+      const qRenderKey = `question_${state.currentIndex}_${state.acceptingAnswers}`;
+
+      // Ha ugyanaz az aktív kérdés van kivetítve, csak a számlálót és a csapat-chipeket frissítjük,
+      // így a folyamatos visszaszámláló csík és a kép egyáltalán nem villan meg!
+      if (renderedQuestionKey === qRenderKey && document.getElementById("teamChipsContainer")) {
+        const counterEl = document.getElementById("answeredCounter");
+        if (counterEl) {
+          counterEl.textContent = `${answeredIds.length} / ${teams.length}`;
+          counterEl.className = `text-2xl font-black ${allAnswered ? "text-emerald-700" : "text-[#1C1917]"}`;
+        }
+        const chipsEl = document.getElementById("teamChipsContainer");
+        if (chipsEl) {
+          chipsEl.innerHTML = buildTeamChipsHtml(teams, qAnswers);
+        }
+        statusSummary.textContent = allAnswered
+          ? "Minden csapat válaszolt! Felfedheted az eredményt."
+          : state.acceptingAnswers
+            ? `Válaszadás folyamatban (${answeredIds.length}/${teams.length})...`
+            : "Idő lejárt! Kattints a válasz felfedésére.";
+        return;
+      }
+
+      renderedQuestionKey = qRenderKey;
+      const initialRatio = state.acceptingAnswers ? getRemainingRatio() : 0;
 
       let typeBadgeClass = "bg-[#DB562B]/12 border-[#DB562B]/25 text-[#B9421C]";
       let typeBadgeLabel = "🔘 ABCD választós";
@@ -951,11 +1233,11 @@
             <div class="flex items-center gap-4">
               <div class="text-right">
                 <div class="text-xs uppercase tracking-wider text-[#6B6258] font-bold">Válaszoltak</div>
-                <div class="text-2xl font-black ${allAnswered ? "text-emerald-700" : "text-[#1C1917]"}">
+                <div id="answeredCounter" class="text-2xl font-black ${allAnswered ? "text-emerald-700" : "text-[#1C1917]"}">
                   ${answeredIds.length} / ${teams.length}
                 </div>
               </div>
-              <div class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-white border-2 ${!state.acceptingAnswers ? "border-rose-500" : timeLeft <= 5 ? "border-rose-500" : "border-[#DB562B]"} flex flex-col items-center justify-center shadow-md">
+              <div id="timerBox" class="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-white border-2 ${!state.acceptingAnswers ? "border-rose-500" : timeLeft <= 5 ? "border-rose-500" : "border-[#DB562B]"} flex flex-col items-center justify-center shadow-md">
                 <span id="timerNumber" class="text-2xl md:text-3xl font-black leading-none ${!state.acceptingAnswers ? "text-rose-600" : timeLeft <= 5 ? "text-rose-600 pulse-ring" : "text-[#1C1917]"}">
                   ${state.acceptingAnswers ? Math.max(0, timeLeft) : "0"}
                 </span>
@@ -965,7 +1247,7 @@
           </div>
 
           <div class="w-full h-2.5 bg-[#E8DEC9] rounded-full overflow-hidden">
-            <div id="timerBar" class="h-full bg-gradient-to-r from-[#FA8841] to-[#DB562B] transition-all duration-300 ease-linear" style="width: ${state.acceptingAnswers ? pct : 0}%"></div>
+            <div id="timerBar" class="w-full h-full bg-gradient-to-r from-[#FA8841] to-[#DB562B] origin-left will-change-transform" style="transform: scaleX(${initialRatio})"></div>
           </div>
 
           <div class="card-surface rounded-3xl ${q.image ? "p-5 md:p-6" : "p-8 md:p-11"} text-center">
@@ -982,19 +1264,8 @@
 
           ${bodyHtml}
 
-          <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
-            ${teams.map(t => {
-              const done = Boolean(qAnswers[t.id]);
-              return `
-                <span class="px-4 py-1.5 rounded-full text-sm font-bold border transition ${
-                  done
-                    ? "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm"
-                    : "bg-white/80 border-[#E8DEC9] text-[#6B6258]"
-                }">
-                  ${done ? "✓ " : "⏳ "}${escapeHtml(t.name)}
-                </span>
-              `;
-            }).join("")}
+          <div id="teamChipsContainer" class="flex flex-wrap items-center justify-center gap-2 pt-1">
+            ${buildTeamChipsHtml(teams, qAnswers)}
           </div>
         </div>
       `;
@@ -1235,10 +1506,15 @@
           </button>
         `;
       } else {
-        statusSummary.textContent = `Következik: ${state.currentIndex + 2}. kérdés / ${QUESTIONS.length}`;
+        const nextIdx = state.currentIndex + 1;
+        const nextIsNewSection = isSectionStart(nextIdx);
+        const nextMeta = nextIsNewSection ? getSectionMeta(nextIdx) : null;
+        statusSummary.textContent = nextIsNewSection && nextMeta
+          ? `Következik a(z) ${nextMeta.sectionNumber}. szakasz: ${nextMeta.title}`
+          : `Következik: ${nextIdx + 1}. kérdés / ${QUESTIONS.length}`;
         actionButtons.innerHTML = `
-          <button onclick="startQuestion(${state.currentIndex + 1})" class="px-7 py-3 rounded-xl bg-[#DB562B] hover:bg-[#B9421C] text-white font-extrabold text-base transition shadow-lg shadow-[#DB562B]/25">
-            Következő kérdés →
+          <button onclick="advanceToQuestion(${nextIdx})" class="px-7 py-3 rounded-xl bg-[#DB562B] hover:bg-[#B9421C] text-white font-extrabold text-base transition shadow-lg shadow-[#DB562B]/25">
+            ${nextIsNewSection ? "Következő szakasz →" : "Következő kérdés →"}
           </button>
         `;
       }
